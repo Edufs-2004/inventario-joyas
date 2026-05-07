@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { RegistroVenta, VarianteStock, Modelo } from '../../types/database'
-import Link from 'next/link'
 
 type VentaCompleta = RegistroVenta & {
   variantes_stock: VarianteStock & {
@@ -85,12 +84,7 @@ export default function PaginaVentas() {
 
   return (
     <main className="p-4 md:p-10 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Panel de Ventas 📊</h1>
-        <Link href="/" className="bg-slate-900 text-white px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-800 text-sm">
-          ⬅ Volver al Inventario
-        </Link>
-      </div>
+      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Panel de Ventas 📊</h1>
 
       {cargando ? (
         <div className="text-center p-10 font-bold text-gray-500">Cargando tablero...</div>
