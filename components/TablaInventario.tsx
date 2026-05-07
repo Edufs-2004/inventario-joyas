@@ -7,12 +7,33 @@ import { useRouter } from 'next/navigation'
 import { CATEGORIAS_JOYAS, MATERIALES_JOYAS } from '../lib/constantes'
 import SubidorImagen from './SubidorImagen'
 
-export default function TablaInventario({ inventarioInicial }: { inventarioInicial: Modelo[] }) {
-  const [filtro, setFiltro] = useState('Todas')
-  
-  // ESTADO PARA EL MENÚ LATERAL (NUEVO)
-  const [sidebarAbierto, setSidebarAbierto] = useState(false)
+// Extendemos el tipo para incluir los pesos que ahora traemos desde page.tsx
+type ModeloConVariantes = Modelo & { variantes_stock?: { peso: number | null, medida: string }[] }
 
+export default function TablaInventario({ inventarioInicial }: { inventarioInicial: ModeloConVariantes[] }) {
+  // ESTADOS PARA LOS NUEVOS FILTROS CHECKBOX
+  const [filtrosCategoria, setFiltrosCategoria] = useState<string[]>([])
+  const [filtrosMaterial, setFiltrosMaterial] = useState<string[]>([])
+
+  // Extraemos las categorías y materiales que realmente existen en tu BD
+  const categoriasUnicas = Array.from(new Set(inventarioInicial.map(j => j.categoria))).filter(Boolean)
+  const materialesUnicos = Array.from(new Set(inventarioInicial.map(j => j.tipo))).filter(Boolean) as string[]
+
+  const toggleFiltroCategoria = (cat: string) => {
+    setFiltrosCategoria(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
+  }
+
+  const toggleFiltroMaterial = (mat: string) => {
+    setFiltrosMaterial(prev => prev.includes(mat) ? prev.filter(m => m !== mat) : [...prev, mat])
+  }
+
+  // Filtrado de la tabla según los checkboxes marcados
+  const joyasFiltradas = inventarioInicial.filter(j => {
+    const pasaCategoria = filtrosCategoria.length === 0 || filtrosCategoria.includes(j.categoria)
+    const pasaMaterial = filtrosMaterial.length === 0 || (j.tipo && filtrosMaterial.includes(j.tipo))
+    return pasaCategoria && pasaMaterial
+  })
+  
   // ESTADOS FICHA PRINCIPAL
   const [joyaSeleccionada, setJoyaSeleccionada] = useState<Modelo | null>(null)
   const [modoEdicion, setModoEdicion] = useState(false)
@@ -37,8 +58,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
   const [cargandoTallasVenta, setCargandoTallasVenta] = useState(false)
 
   const router = useRouter()
-  const joyasFiltradas = filtro === 'Todas' ? inventarioInicial : inventarioInicial.filter(j => j.categoria === filtro)
-  const categoriasFiltro = ['Todas', ...CATEGORIAS_JOYAS]
 
   // ABRIR FICHA DETALLADA (CLICK EN LA FILA)
   const abrirFicha = async (joya: Modelo) => {
@@ -138,132 +157,126 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 overflow-hidden w-full relative">
-      
-      {/* CAPA OSCURA PARA MÓVIL CUANDO EL MENÚ ESTÁ ABIERTO */}
-      {sidebarAbierto && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={() => setSidebarAbierto(false)}
-        />
-      )}
-
-      {/* MENÚ LATERAL (SIDEBAR) */}
-      <aside className={`bg-slate-900 text-white transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-50 md:relative ${sidebarAbierto ? 'w-64 translate-x-0' : '-translate-x-full md:translate-x-0 md:w-20'}`}>
-        <div className="p-6 flex items-center justify-between border-b border-slate-800">
-          {sidebarAbierto && <h2 className="font-bold text-amber-400 text-xl whitespace-nowrap">Eos Joyas</h2>}
-          <button onClick={() => setSidebarAbierto(!sidebarAbierto)} className="p-2 hover:bg-slate-800 rounded-lg hidden md:block">
-            {sidebarAbierto ? '⬅️' : '☰'}
-          </button>
-          <button onClick={() => setSidebarAbierto(false)} className="p-2 hover:bg-slate-800 rounded-lg md:hidden text-xl">
-            ✖
-          </button>
+    <div className="w-full">
+      {/* NUEVOS FILTROS CON CHECKBOX */}
+      <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-6">
+        {/* Checkboxes de Categoría */}
+        <div className="flex-1">
+          <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Filtrar por Categoría</h3>
+          <div className="flex flex-wrap gap-4">
+            {categoriasUnicas.map(cat => (
+              <label key={cat} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 font-semibold hover:text-slate-900 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={filtrosCategoria.includes(cat)}
+                  onChange={() => toggleFiltroCategoria(cat)}
+                  className="w-4 h-4 rounded text-slate-900 border-gray-300 focus:ring-slate-900"
+                />
+                {cat}
+              </label>
+            ))}
+            {categoriasUnicas.length === 0 && <span className="text-xs text-gray-400">Sin datos</span>}
+          </div>
         </div>
 
-        <nav className="flex-1 px-4 space-y-4 mt-4">
-          <button onClick={() => { router.push('/'); setSidebarAbierto(false); }} className="w-full flex items-center gap-4 p-3 rounded-xl bg-amber-500 text-white font-bold transition-all">
-            <span className="text-xl">📦</span>
-            {sidebarAbierto && <span>Inventario</span>}
-          </button>
-          <button onClick={() => { router.push('/ventas'); setSidebarAbierto(false); }} className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-800 text-slate-400 transition-all">
-            <span className="text-xl">📊</span>
-            {sidebarAbierto && <span>Panel de Ventas</span>}
-          </button>
-          <button className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-800 text-slate-400 opacity-50 cursor-not-allowed transition-all">
-            <span className="text-xl">💰</span>
-            {sidebarAbierto && <span>Contabilidad</span>}
-          </button>
-        </nav>
-      </aside>
-
-      {/* CONTENIDO PRINCIPAL */}
-      <main className="flex-1 overflow-y-auto w-full p-4 md:p-8">
-        
-        {/* BOTÓN HAMBURGUESA PARA MÓVIL */}
-        <div className="md:hidden flex items-center mb-6">
-          <button 
-            onClick={() => setSidebarAbierto(true)} 
-            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg shadow-md font-bold text-sm"
-          >
-            ☰ Menú
-          </button>
+        {/* Checkboxes de Material */}
+        <div className="flex-1 md:border-l md:pl-6">
+          <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Filtrar por Material</h3>
+          <div className="flex flex-wrap gap-4">
+            {materialesUnicos.map(mat => (
+              <label key={mat} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 font-semibold hover:text-slate-900 transition-colors">
+                <input 
+                  type="checkbox" 
+                  checked={filtrosMaterial.includes(mat)}
+                  onChange={() => toggleFiltroMaterial(mat)}
+                  className="w-4 h-4 rounded text-amber-600 border-gray-300 focus:ring-amber-500"
+                />
+                {mat}
+              </label>
+            ))}
+            {materialesUnicos.length === 0 && <span className="text-xs text-gray-400">Sin datos</span>}
+          </div>
         </div>
+      </div>
 
-        {/* FILTROS (Deslizables en celular) */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-          {categoriasFiltro.map(cat => (
-            <button key={cat} onClick={() => setFiltro(cat)} className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors whitespace-nowrap flex-shrink-0 ${filtro === cat ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-100'}`}>
-              {cat}
-            </button>
-          ))}
-        </div>
+      {/* TABLA PRINCIPAL */}
+      <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
+        <table className="w-full min-w-[800px] text-left border-collapse">
+          <thead>
+            <tr className="bg-gray-100 text-gray-600 text-sm uppercase">
+              {/* N° COMO PRIMERA COLUMNA */}
+              <th className="p-3 md:p-4 border-b w-12 text-center">N°</th>
+              <th className="p-3 md:p-4 border-b w-16 text-center">Foto</th>
+              <th className="p-3 md:p-4 border-b">Nombre</th>
+              {/* CATEGORÍA Y MATERIAL SEPARADOS */}
+              <th className="p-3 md:p-4 border-b hidden sm:table-cell">Categoría</th>
+              <th className="p-3 md:p-4 border-b hidden md:table-cell">Material</th>
+              <th className="p-3 md:p-4 border-b hidden lg:table-cell">Diámetro</th>
+              <th className="p-3 md:p-4 border-b hidden xl:table-cell text-center">Pesos Registrados</th>
+              <th className="p-3 md:p-4 border-b text-right pr-6">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {joyasFiltradas.map((joya, index) => (
+              <tr key={joya.id} onClick={() => abrirFicha(joya)} className="hover:bg-amber-50 cursor-pointer transition-colors border-b last:border-0">
+                {/* N° DINÁMICO */}
+                <td className="p-3 md:p-4 text-center font-bold text-amber-600">
+                  {index + 1}
+                </td>
 
-        {/* TABLA PRINCIPAL (Responsiva) */}
-        <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
-          <table className="w-full min-w-[800px] text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-100 text-gray-600 text-sm uppercase">
-                <th className="p-3 md:p-4 border-b w-16 text-center">Foto</th>
-                <th className="p-3 md:p-4 border-b w-12 text-center">N°</th>
-                <th className="p-3 md:p-4 border-b">Nombre</th>
-                <th className="p-3 md:p-4 border-b">Etiquetas</th>
-                <th className="p-3 md:p-4 border-b hidden lg:table-cell">Diámetro</th>
-                <th className="p-3 md:p-4 border-b hidden xl:table-cell text-center">Peso</th>
-                <th className="p-3 md:p-4 border-b text-right pr-6">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {joyasFiltradas.map((joya, index) => (
-                <tr key={joya.id} onClick={() => abrirFicha(joya)} className="hover:bg-amber-50 cursor-pointer transition-colors border-b last:border-0">
-                  <td className="p-2 md:p-3 text-center">
-                    {joya.foto_presentacion ? (
-                      <img src={joya.foto_presentacion} alt="mini" className="w-10 h-10 md:w-12 md:h-12 object-cover rounded shadow-sm border mx-auto" />
-                    ) : <span className="text-xl md:text-2xl opacity-50">💎</span>}
-                  </td>
-                  
-                  {/* N° DINÁMICO */}
-                  <td className="p-3 md:p-4 text-center font-bold text-amber-600">
-                    {index + 1}
-                  </td>
+                <td className="p-2 md:p-3 text-center">
+                  {joya.foto_presentacion ? (
+                    <img src={joya.foto_presentacion} alt="mini" className="w-10 h-10 md:w-12 md:h-12 object-cover rounded shadow-sm border mx-auto" />
+                  ) : <span className="text-xl md:text-2xl opacity-50">💎</span>}
+                </td>
+                
+                <td className="p-3 md:p-4 font-bold text-gray-900 text-sm md:text-base">{joya.nombre}</td>
+                
+                {/* CATEGORÍA SOLA */}
+                <td className="p-3 md:p-4 hidden sm:table-cell">
+                  <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-blue-200">
+                    {joya.categoria}
+                  </span>
+                </td>
 
-                  <td className="p-3 md:p-4 font-bold text-gray-900 text-sm md:text-base">{joya.nombre}</td>
-                  
-                  {/* ETIQUETAS UNIFICADAS (Categoría y Material) */}
-                  <td className="p-3 md:p-4">
-                    <div className="flex flex-wrap gap-2">
-                      <span className="bg-slate-200 text-slate-800 px-2 py-1 rounded text-[10px] font-bold uppercase border border-slate-300">
-                        {joya.categoria}
-                      </span>
-                      {joya.tipo && (
-                        <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-[10px] font-bold uppercase border border-amber-200">
-                          {joya.tipo}
-                        </span>
-                      )}
+                {/* MATERIAL SOLO */}
+                <td className="p-3 md:p-4 hidden md:table-cell">
+                  {joya.tipo ? (
+                    <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-slate-200">
+                      {joya.tipo}
+                    </span>
+                  ) : '-'}
+                </td>
+
+                {/* DIÁMETRO */}
+                <td className="p-3 md:p-4 text-gray-600 hidden lg:table-cell text-sm">
+                  {joya.diametro || '-'}
+                </td>
+
+                {/* PESOS VISIBLES (Muestra todos los pesos de esa joya) */}
+                <td className="p-3 md:p-4 hidden xl:table-cell text-center">
+                  {joya.variantes_stock && joya.variantes_stock.length > 0 ? (
+                    <div className="flex flex-wrap justify-center gap-1">
+                      {joya.variantes_stock.map((v, i) => (
+                         <span key={i} className="bg-gray-50 px-2 py-1 rounded border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-200 transition-colors" title={`Pertenece a Talla: ${v.medida}`}>
+                           {v.peso ? `${v.peso}g` : '-'}
+                         </span>
+                      ))}
                     </div>
-                  </td>
-
-                  {/* DIÁMETRO */}
-                  <td className="p-3 md:p-4 text-gray-600 hidden lg:table-cell text-sm">
-                    {joya.diametro || '-'}
-                  </td>
-
-                  {/* PESO (Indicador de ver tallas) */}
-                  <td className="p-3 md:p-4 text-gray-600 hidden xl:table-cell text-center">
-                    <span className="text-[10px] text-gray-400 italic bg-gray-50 px-2 py-1 rounded border border-gray-200">Ver tallas</span>
-                  </td>
-                  
-                  <td className="p-3 md:p-4 text-right">
-                    <button onClick={(e) => abrirModalVenta(e, joya)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-colors">
-                      🤝 Vender
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {joyasFiltradas.length === 0 && <tr><td colSpan={7} className="p-8 text-center text-gray-400">No hay productos.</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </main>
+                  ) : <span className="text-[10px] text-gray-400 italic">Sin tallas</span>}
+                </td>
+                
+                <td className="p-3 md:p-4 text-right">
+                  <button onClick={(e) => abrirModalVenta(e, joya)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-colors">
+                    🤝 Vender
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {joyasFiltradas.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-gray-400">No hay productos que coincidan con el filtro.</td></tr>}
+          </tbody>
+        </table>
+      </div>
 
       {/* ========================================================================= */}
       {/* MODAL 1: VENTA RÁPIDA (Se abre al apretar "🤝 Vender" en la tabla) */}

@@ -3,9 +3,10 @@ import FormularioJoya from '../components/FormularioJoya'
 import TablaInventario from '../components/TablaInventario'
 
 export default async function Home() {
+  // Ahora traemos las joyas y ADEMÁS sus pesos y medidas para mostrarlos en la tabla
   const { data: inventario, error } = await supabase
     .from('modelos')
-    .select('*')
+    .select('*, variantes_stock(peso, medida)')
     .order('created_at', { ascending: true })
 
   if (error) {
@@ -21,7 +22,7 @@ export default async function Home() {
       </div>
 
       <FormularioJoya />
-      <TablaInventario inventarioInicial={inventario || []} />
+      <TablaInventario inventarioInicial={inventario as any[]} />
     </main>
   )
 }
