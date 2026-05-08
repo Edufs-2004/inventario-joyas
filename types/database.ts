@@ -43,4 +43,5 @@ export type RegistroVenta = {
   notas_internas: string | null;
   fecha_inicio: string;
   fecha_cierre: string | null;
+  costo_envio: number | null; // <--- ESTA ES LA LÍNEA NUEVA
 };

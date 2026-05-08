@@ -43,12 +43,12 @@ export default function PaginaVentas() {
     const esNuevaVentaCerrada = formVenta.estado === 'Vendido' && ventaEditando.estado !== 'Vendido'
     const fechaCierre = esNuevaVentaCerrada ? new Date().toISOString() : formVenta.fecha_cierre
 
-    // 1. Actualizar la venta
     const { error } = await supabase
       .from('registro_ventas')
       .update({
         estado: formVenta.estado,
         precio_final_efectivo: formVenta.precio_final_efectivo ? Number(formVenta.precio_final_efectivo) : null,
+        costo_envio: formVenta.costo_envio ? Number(formVenta.costo_envio) : null,
         nombre_cliente: formVenta.nombre_cliente,
         direccion_envio: formVenta.direccion_envio,
         comuna: formVenta.comuna,
@@ -58,7 +58,6 @@ export default function PaginaVentas() {
       })
       .eq('id', ventaEditando.id)
 
-    // 2. Descontar el stock si la venta se cerró
     if (!error && esNuevaVentaCerrada && ventaEditando.variantes_stock) {
       const stockActual = ventaEditando.variantes_stock.stock
       await supabase
@@ -77,9 +76,36 @@ export default function PaginaVentas() {
     }
   }
 
+  // FUNCIÓN PARA CANCELAR Y ELIMINAR LA VENTA
+  const eliminarVenta = async () => {
+    if (!ventaEditando) return
+    const confirmar = window.confirm("¿Estás seguro de cancelar y eliminar esta venta? Esta acción no se puede deshacer.")
+    if (!confirmar) return
+
+    setGuardando(true)
+
+    // Si la venta ya estaba descontada del stock ("Vendido"), devolvemos el stock.
+    if (ventaEditando.estado === 'Vendido' && ventaEditando.variantes_stock) {
+      await supabase
+        .from('variantes_stock')
+        .update({ stock: ventaEditando.variantes_stock.stock + 1 })
+        .eq('id', ventaEditando.variantes_stock.id)
+    }
+
+    const { error } = await supabase.from('registro_ventas').delete().eq('id', ventaEditando.id)
+    
+    setGuardando(false)
+    if (error) alert("Error al eliminar: " + error.message)
+    else {
+      setVentaEditando(null)
+      cargarVentas()
+    }
+  }
+
   const calcularGanancia = () => {
     if (!formVenta.precio_final_efectivo || !ventaEditando) return null
-    return Number(formVenta.precio_final_efectivo) - ventaEditando.costo_historico
+    const costoTotal = ventaEditando.costo_historico + Number(formVenta.costo_envio || 0)
+    return Number(formVenta.precio_final_efectivo) - costoTotal
   }
 
   return (
@@ -143,8 +169,7 @@ export default function PaginaVentas() {
                   <h3 className="font-bold text-gray-800 text-lg">{ventaEditando.variantes_stock?.modelos?.nombre}</h3>
                   <div className="flex gap-4 mt-1 text-sm">
                     <p className="text-gray-500">Talla: <span className="font-bold text-gray-800">{ventaEditando.variantes_stock?.medida}</span></p>
-                    <p className="text-gray-500">Costo: <span className="font-bold text-red-600">${ventaEditando.costo_historico}</span></p>
-                    <p className="text-gray-500">Precio Lista: <span className="font-bold text-blue-600">${ventaEditando.precio_lista_historico}</span></p>
+                    <p className="text-gray-500">Costo Joya: <span className="font-bold text-red-600">${ventaEditando.costo_historico}</span></p>
                   </div>
                 </div>
               </div>
@@ -158,11 +183,15 @@ export default function PaginaVentas() {
                   </div>
                   <div className="bg-white p-4 rounded-xl border shadow-sm">
                     <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Precio Final Cerrado ($)</label>
-                    <input type="number" value={formVenta.precio_final_efectivo || ''} onChange={e => setFormVenta({...formVenta, precio_final_efectivo: e.target.value ? Number(e.target.value) : null})} className="w-full border rounded p-2 text-lg font-bold text-green-600" />
+                    <input type="number" value={formVenta.precio_final_efectivo || ''} onChange={e => setFormVenta({...formVenta, precio_final_efectivo: e.target.value ? Number(e.target.value) : null})} className="w-full border rounded p-2 text-lg font-bold text-green-600 mb-4" />
+                    
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Costo de Envío ($)</label>
+                    <input type="number" value={formVenta.costo_envio || ''} onChange={e => setFormVenta({...formVenta, costo_envio: e.target.value ? Number(e.target.value) : null})} className="w-full border rounded p-2 text-md font-bold text-red-500" placeholder="Ej: 3000" />
+
                     {formVenta.precio_final_efectivo && (
-                      <div className="mt-3 p-2 rounded bg-slate-50 border flex justify-between text-sm">
-                        <span className="text-slate-500">Ganancia Estimada:</span>
-                        <span className={`font-bold ${calcularGanancia()! > 0 ? 'text-green-600' : 'text-red-600'}`}>${calcularGanancia()}</span>
+                      <div className="mt-4 p-3 rounded bg-slate-50 border flex justify-between text-sm">
+                        <span className="text-slate-500 font-bold uppercase text-[10px]">Utilidad Neta (Descontando costos):</span>
+                        <span className={`font-bold text-lg ${calcularGanancia()! > 0 ? 'text-green-600' : 'text-red-600'}`}>${calcularGanancia()}</span>
                       </div>
                     )}
                   </div>
@@ -179,11 +208,16 @@ export default function PaginaVentas() {
                 </div>
               </form>
             </div>
-            <div className="bg-gray-100 p-4 flex justify-end gap-3 border-t">
-              <button onClick={() => setVentaEditando(null)} className="px-6 py-2 bg-white border rounded-lg font-bold text-gray-600 text-sm">Cerrar</button>
-              <button type="submit" form="form-venta" disabled={guardando} className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 text-sm">
-                {guardando ? 'Guardando...' : '💾 Guardar Cambios'}
+            <div className="bg-gray-100 p-4 flex justify-between gap-3 border-t">
+              <button onClick={eliminarVenta} disabled={guardando} className="px-4 py-2 bg-red-100 border border-red-300 rounded-lg font-bold text-red-600 hover:bg-red-200 text-sm">
+                🗑️ Cancelar Venta
               </button>
+              <div className="flex gap-2">
+                <button onClick={() => setVentaEditando(null)} className="px-6 py-2 bg-white border rounded-lg font-bold text-gray-600 text-sm">Cerrar</button>
+                <button type="submit" form="form-venta" disabled={guardando} className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 text-sm">
+                  {guardando ? 'Guardando...' : '💾 Guardar Cambios'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
