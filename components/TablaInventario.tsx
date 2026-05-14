@@ -7,34 +7,24 @@ import { useRouter } from 'next/navigation'
 import { CATEGORIAS_JOYAS, MATERIALES_JOYAS } from '../lib/constantes'
 import SubidorImagen from './SubidorImagen'
 
-// Extendemos el tipo para incluir los pesos que ahora traemos desde page.tsx
 type ModeloConVariantes = Modelo & { variantes_stock?: { peso: number | null, medida: string }[] }
 
 export default function TablaInventario({ inventarioInicial }: { inventarioInicial: ModeloConVariantes[] }) {
-  // ESTADOS PARA LOS NUEVOS FILTROS CHECKBOX
   const [filtrosCategoria, setFiltrosCategoria] = useState<string[]>([])
   const [filtrosMaterial, setFiltrosMaterial] = useState<string[]>([])
 
-  // Extraemos las categorías y materiales que realmente existen en tu BD
   const categoriasUnicas = Array.from(new Set(inventarioInicial.map(j => j.categoria))).filter(Boolean)
   const materialesUnicos = Array.from(new Set(inventarioInicial.map(j => j.tipo))).filter(Boolean) as string[]
 
-  const toggleFiltroCategoria = (cat: string) => {
-    setFiltrosCategoria(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
-  }
+  const toggleFiltroCategoria = (cat: string) => setFiltrosCategoria(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
+  const toggleFiltroMaterial = (mat: string) => setFiltrosMaterial(prev => prev.includes(mat) ? prev.filter(m => m !== mat) : [...prev, mat])
 
-  const toggleFiltroMaterial = (mat: string) => {
-    setFiltrosMaterial(prev => prev.includes(mat) ? prev.filter(m => m !== mat) : [...prev, mat])
-  }
-
-  // Filtrado de la tabla según los checkboxes marcados
   const joyasFiltradas = inventarioInicial.filter(j => {
     const pasaCategoria = filtrosCategoria.length === 0 || filtrosCategoria.includes(j.categoria)
     const pasaMaterial = filtrosMaterial.length === 0 || (j.tipo && filtrosMaterial.includes(j.tipo))
     return pasaCategoria && pasaMaterial
   })
   
-  // ESTADOS FICHA PRINCIPAL
   const [joyaSeleccionada, setJoyaSeleccionada] = useState<Modelo | null>(null)
   const [modoEdicion, setModoEdicion] = useState(false)
   const [formEdit, setFormEdit] = useState<Partial<Modelo>>({})
@@ -52,14 +42,12 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
   const [formVarianteEdit, setFormVarianteEdit] = useState<Partial<VarianteStock>>({})
   const [guardandoEdicionVariante, setGuardandoEdicionVariante] = useState(false)
 
-  // ESTADOS PARA EL MODAL DE VENTA RÁPIDA
   const [joyaParaVender, setJoyaParaVender] = useState<Modelo | null>(null)
   const [tallasParaVender, setTallasParaVender] = useState<VarianteStock[]>([])
   const [cargandoTallasVenta, setCargandoTallasVenta] = useState(false)
 
   const router = useRouter()
 
-  // ABRIR FICHA DETALLADA (CLICK EN LA FILA)
   const abrirFicha = async (joya: Modelo) => {
     setJoyaSeleccionada(joya)
     setFormEdit(joya)
@@ -79,7 +67,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
     setCargandoDatos(false)
   }
 
-  // ABRIR MODAL RÁPIDO DE VENTA (CLICK EN BOTÓN VENDER)
   const abrirModalVenta = async (e: React.MouseEvent, joya: Modelo) => {
     e.stopPropagation() 
     setJoyaParaVender(joya)
@@ -91,30 +78,15 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
     setCargandoTallasVenta(false)
   }
 
-  // EJECUTAR LA VENTA
   const iniciarVenta = async (v: VarianteStock) => {
-    if (v.stock < 1) {
-      alert("¡No hay stock de esta talla!")
-      return
-    }
-    const confirmar = window.confirm(`¿Iniciar venta de talla ${v.medida} a $${v.precio_venta}?`)
-    if (!confirmar) return
+    if (v.stock < 1) return alert("¡No hay stock de esta talla!")
+    if (!window.confirm(`¿Iniciar venta de talla ${v.medida} a $${v.precio_venta}?`)) return
 
-    const { error } = await supabase.from('registro_ventas').insert([{
-      variante_id: v.id,
-      estado: 'Negociando',
-      costo_historico: v.costo,
-      precio_lista_historico: v.precio_venta
-    }])
-
+    const { error } = await supabase.from('registro_ventas').insert([{ variante_id: v.id, estado: 'Negociando', costo_historico: v.costo, precio_lista_historico: v.precio_venta }])
     if (error) alert("Error al iniciar venta: " + error.message)
-    else {
-      alert("✅ Venta en proceso (Negociando).")
-      setJoyaParaVender(null) 
-    }
+    else { alert("✅ Venta en proceso (Negociando)."); setJoyaParaVender(null) }
   }
 
-  // GUARDAR EDICIÓN MAESTRA
   const guardarEdicion = async () => {
     if (!joyaSeleccionada) return
     setGuardando(true)
@@ -133,6 +105,7 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
     if (error) alert(error.message)
     else if (data) { setVariantes([...variantes, data[0]]); setNuevaVariante({ medida: '', stock: 1, peso: '', costo: '', precio_venta: '' }) }
     setGuardandoVariante(false)
+    router.refresh()
   }
 
   const guardarEdicionVariante = async (id: string) => {
@@ -141,6 +114,7 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
     if (error) alert(error.message)
     else if (data) { setVariantes(variantes.map(v => v.id === id ? data[0] : v)); setIdVarianteEditando(null) }
     setGuardandoEdicionVariante(false)
+    router.refresh()
   }
 
   const agregarGemaExtra = async (e: React.FormEvent) => {
@@ -158,20 +132,14 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
 
   return (
     <div className="w-full">
-      {/* NUEVOS FILTROS CON CHECKBOX */}
+      {/* FILTROS CHECKBOX (Siguen usando Categoría y Material internamente) */}
       <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-6">
-        {/* Checkboxes de Categoría */}
         <div className="flex-1">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Filtrar por Categoría</h3>
           <div className="flex flex-wrap gap-4">
             {categoriasUnicas.map(cat => (
               <label key={cat} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 font-semibold hover:text-slate-900 transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={filtrosCategoria.includes(cat)}
-                  onChange={() => toggleFiltroCategoria(cat)}
-                  className="w-4 h-4 rounded text-slate-900 border-gray-300 focus:ring-slate-900"
-                />
+                <input type="checkbox" checked={filtrosCategoria.includes(cat)} onChange={() => toggleFiltroCategoria(cat)} className="w-4 h-4 rounded text-slate-900 border-gray-300 focus:ring-slate-900"/>
                 {cat}
               </label>
             ))}
@@ -179,18 +147,12 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
           </div>
         </div>
 
-        {/* Checkboxes de Material */}
         <div className="flex-1 md:border-l md:pl-6">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Filtrar por Material</h3>
           <div className="flex flex-wrap gap-4">
             {materialesUnicos.map(mat => (
               <label key={mat} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 font-semibold hover:text-slate-900 transition-colors">
-                <input 
-                  type="checkbox" 
-                  checked={filtrosMaterial.includes(mat)}
-                  onChange={() => toggleFiltroMaterial(mat)}
-                  className="w-4 h-4 rounded text-amber-600 border-gray-300 focus:ring-amber-500"
-                />
+                <input type="checkbox" checked={filtrosMaterial.includes(mat)} onChange={() => toggleFiltroMaterial(mat)} className="w-4 h-4 rounded text-amber-600 border-gray-300 focus:ring-amber-500"/>
                 {mat}
               </label>
             ))}
@@ -199,31 +161,27 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
         </div>
       </div>
 
-      {/* TABLA PRINCIPAL */}
+      {/* TABLA PRINCIPAL (Optimizada para móviles y con Tallas/Pesos con guiones) */}
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
         <table className="w-full min-w-[800px] text-left border-collapse">
           <thead>
-            <tr className="bg-gray-100 text-gray-600 text-sm uppercase">
-              {/* N° COMO PRIMERA COLUMNA */}
+            {/* Se quitaron los "hidden" para que se vea siempre en celular */}
+            <tr className="bg-gray-100 text-gray-600 text-sm uppercase whitespace-nowrap">
               <th className="p-3 md:p-4 border-b w-12 text-center">N°</th>
               <th className="p-3 md:p-4 border-b w-16 text-center">Foto</th>
-              <th className="p-3 md:p-4 border-b">Nombre</th>
-              {/* CATEGORÍA Y MATERIAL SEPARADOS */}
-              <th className="p-3 md:p-4 border-b hidden sm:table-cell">Categoría</th>
-              <th className="p-3 md:p-4 border-b hidden md:table-cell">Material</th>
-              <th className="p-3 md:p-4 border-b hidden lg:table-cell">Diámetro</th>
-              <th className="p-3 md:p-4 border-b hidden xl:table-cell text-center">Pesos Registrados</th>
+              <th className="p-3 md:p-4 border-b min-w-[150px]">Nombre</th>
+              <th className="p-3 md:p-4 border-b text-center">Tallas</th>
+              <th className="p-3 md:p-4 border-b text-center">Pesos</th>
+              <th className="p-3 md:p-4 border-b text-center">Material</th>
+              <th className="p-3 md:p-4 border-b text-center">Diámetro</th>
               <th className="p-3 md:p-4 border-b text-right pr-6">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {joyasFiltradas.map((joya, index) => (
               <tr key={joya.id} onClick={() => abrirFicha(joya)} className="hover:bg-amber-50 cursor-pointer transition-colors border-b last:border-0">
-                {/* N° DINÁMICO */}
-                <td className="p-3 md:p-4 text-center font-bold text-amber-600">
-                  {index + 1}
-                </td>
-
+                <td className="p-3 md:p-4 text-center font-bold text-amber-600">{index + 1}</td>
+                
                 <td className="p-2 md:p-3 text-center">
                   {joya.foto_presentacion ? (
                     <img src={joya.foto_presentacion} alt="mini" className="w-10 h-10 md:w-12 md:h-12 object-cover rounded shadow-sm border mx-auto" />
@@ -232,54 +190,48 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                 
                 <td className="p-3 md:p-4 font-bold text-gray-900 text-sm md:text-base">{joya.nombre}</td>
                 
-                {/* CATEGORÍA SOLA */}
-                <td className="p-3 md:p-4 hidden sm:table-cell">
-                  <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-blue-200">
-                    {joya.categoria}
-                  </span>
+                {/* COLUMNA TALLAS (Ej: 12 - 13) */}
+                <td className="p-3 md:p-4 text-center font-bold text-slate-700 text-sm whitespace-nowrap">
+                  {joya.variantes_stock && joya.variantes_stock.length > 0 
+                    ? joya.variantes_stock.map(v => v.medida).join(' - ') 
+                    : <span className="text-[10px] text-gray-400 italic">Sin tallas</span>}
                 </td>
 
-                {/* MATERIAL SOLO */}
-                <td className="p-3 md:p-4 hidden md:table-cell">
+                {/* COLUMNA PESOS (Ej: 2.4g - 2.5g) */}
+                <td className="p-3 md:p-4 text-center text-gray-600 text-sm whitespace-nowrap bg-gray-50/50">
+                  {joya.variantes_stock && joya.variantes_stock.length > 0 
+                    ? joya.variantes_stock.map(v => v.peso ? `${v.peso}g` : '-').join(' - ') 
+                    : '-'}
+                </td>
+
+                {/* MATERIAL SIEMPRE VISIBLE */}
+                <td className="p-3 md:p-4 text-center">
                   {joya.tipo ? (
-                    <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-slate-200">
+                    <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-slate-200 whitespace-nowrap">
                       {joya.tipo}
                     </span>
                   ) : '-'}
                 </td>
 
-                {/* DIÁMETRO */}
-                <td className="p-3 md:p-4 text-gray-600 hidden lg:table-cell text-sm">
+                {/* DIÁMETRO SIEMPRE VISIBLE */}
+                <td className="p-3 md:p-4 text-center text-gray-600 text-sm whitespace-nowrap">
                   {joya.diametro || '-'}
-                </td>
-
-                {/* PESOS VISIBLES (Muestra todos los pesos de esa joya) */}
-                <td className="p-3 md:p-4 hidden xl:table-cell text-center">
-                  {joya.variantes_stock && joya.variantes_stock.length > 0 ? (
-                    <div className="flex flex-wrap justify-center gap-1">
-                      {joya.variantes_stock.map((v, i) => (
-                         <span key={i} className="bg-gray-50 px-2 py-1 rounded border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-200 transition-colors" title={`Pertenece a Talla: ${v.medida}`}>
-                           {v.peso ? `${v.peso}g` : '-'}
-                         </span>
-                      ))}
-                    </div>
-                  ) : <span className="text-[10px] text-gray-400 italic">Sin tallas</span>}
                 </td>
                 
                 <td className="p-3 md:p-4 text-right">
-                  <button onClick={(e) => abrirModalVenta(e, joya)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-colors">
+                  <button onClick={(e) => abrirModalVenta(e, joya)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-colors whitespace-nowrap">
                     🤝 Vender
                   </button>
                 </td>
               </tr>
             ))}
-            {joyasFiltradas.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-gray-400">No hay productos que coincidan con el filtro.</td></tr>}
+            {joyasFiltradas.length === 0 && <tr><td colSpan={8} className="p-8 text-center text-gray-400">No hay productos que coincidan.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: VENTA RÁPIDA (Se abre al apretar "🤝 Vender" en la tabla) */}
+      {/* MODAL 1: VENTA RÁPIDA */}
       {/* ========================================================================= */}
       {joyaParaVender && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-end sm:items-center justify-center z-[60] p-4">
@@ -324,13 +276,13 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL 2: FICHA DETALLADA (Se abre al hacer click en la fila) */}
+      {/* MODAL 2: FICHA DETALLADA */}
       {/* ========================================================================= */}
       {joyaSeleccionada && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh]">
             
-            <div className="bg-slate-900 p-4 sm:p-6 text-white flex justify-between items-center">
+            <div className="bg-slate-900 p-4 sm:p-6 text-white flex justify-between items-center shrink-0">
               <div>
                 <h2 className="text-xl sm:text-3xl font-bold text-amber-400 truncate max-w-[200px] sm:max-w-md">{modoEdicion ? 'Editando Producto' : joyaSeleccionada.nombre}</h2>
                 {!modoEdicion && (
@@ -345,7 +297,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
             <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-gray-50">
               
               {modoEdicion ? (
-                /* MODO EDICIÓN */
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-4 bg-white p-4 rounded-xl shadow-sm border">
                     <h3 className="font-bold text-gray-800 border-b pb-2">Modificar Datos Principales</h3>
@@ -366,7 +317,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                 </div>
               ) : (
                 <>
-                  {/* MODO VISTA FICHA */}
                   <div className="mb-6 bg-white p-4 rounded-xl shadow-sm border">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-2">
                       <h3 className="text-lg font-bold text-gray-800">📸 Registro Fotográfico</h3>
@@ -381,7 +331,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                   </div>
 
                   <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    {/* GEMAS */}
                     <div className="xl:col-span-1 bg-white p-4 rounded-xl shadow-sm border h-fit">
                       <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">💎 Gemas Registradas</h3>
                       {cargandoDatos ? <p className="text-sm text-gray-500">Cargando...</p> : (
@@ -405,7 +354,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                       </form>
                     </div>
 
-                    {/* TALLAS Y STOCK */}
                     <div className="xl:col-span-2 bg-white p-4 rounded-xl shadow-sm border h-fit">
                       <h3 className="text-lg font-bold text-gray-800 border-b pb-2 mb-4">📦 Control de Variantes y Stock</h3>
                       <div className="overflow-x-auto mb-6 scrollbar-hide">
@@ -474,7 +422,7 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
             </div>
 
             {modoEdicion && (
-              <div className="bg-gray-100 p-4 flex justify-end gap-3 border-t">
+              <div className="bg-gray-100 p-4 flex justify-end gap-3 border-t shrink-0">
                 <button onClick={() => setModoEdicion(false)} className="px-4 py-2 bg-white border rounded shadow-sm font-bold text-gray-600 text-sm">Cancelar</button>
                 <button onClick={guardarEdicion} disabled={guardando} className="px-4 py-2 bg-green-600 text-white rounded shadow-sm font-bold hover:bg-green-700 text-sm">💾 Guardar Cambios</button>
               </div>
