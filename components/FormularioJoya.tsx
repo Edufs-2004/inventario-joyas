@@ -25,7 +25,7 @@ export default function FormularioJoya() {
   const [gemaTempNombre, setGemaTempNombre] = useState('')
   const [gemaTempMedida, setGemaTempMedida] = useState('')
 
-  // NUEVO: SISTEMA MULTI-TALLAS
+  // SISTEMA MULTI-TALLAS
   type TallaTemp = { medida: string, peso: string, costo: string, precioVenta: string, stock: number }
   const [tallas, setTallas] = useState<TallaTemp[]>([])
   const [tallaTemp, setTallaTemp] = useState<TallaTemp>({ medida: '', peso: '', costo: '', precioVenta: '', stock: 1 })
@@ -33,7 +33,6 @@ export default function FormularioJoya() {
   const [cargando, setCargando] = useState(false)
   const router = useRouter()
 
-  // Funciones Gemas
   const agregarGemaTemporal = (e: React.FormEvent) => {
     e.preventDefault()
     if (!gemaTempNombre || !gemaTempMedida) return
@@ -43,7 +42,6 @@ export default function FormularioJoya() {
   }
   const eliminarGemaTemporal = (index: number) => setGemas(gemas.filter((_, i) => i !== index))
 
-  // Funciones Tallas
   const agregarTallaTemporal = (e: React.MouseEvent) => {
     e.preventDefault()
     if (!tallaTemp.medida || !tallaTemp.costo || !tallaTemp.precioVenta) {
@@ -51,17 +49,14 @@ export default function FormularioJoya() {
       return
     }
     setTallas([...tallas, tallaTemp])
-    // Limpiamos los inputs temporales pero dejamos el stock en 1 por defecto
     setTallaTemp({ medida: '', peso: '', costo: '', precioVenta: '', stock: 1 })
   }
   const eliminarTallaTemporal = (index: number) => setTallas(tallas.filter((_, i) => i !== index))
 
-  // Función Guardar Todo
   const guardarJoya = async (e: React.FormEvent) => {
     e.preventDefault()
     setCargando(true)
 
-    // 1. Insertar el Producto Principal
     const { data: modeloData, error: errorModelo } = await supabase
       .from('modelos')
       .insert([{ nombre, categoria, tipo, diametro: diametro || null, foto_presentacion: fotoPresentacion, foto_peso: fotoPeso, foto_venta: fotoVenta }])
@@ -75,13 +70,11 @@ export default function FormularioJoya() {
 
     const modeloId = modeloData[0].id
 
-    // 2. Insertar las Gemas (si hay)
     if (gemas.length > 0) {
       const gemasInsert = gemas.map(g => ({ modelo_id: modeloId, nombre: g.nombre, medida: g.medida }))
       await supabase.from('gemas_joya').insert(gemasInsert)
     }
 
-    // 3. Insertar TODAS las tallas agregadas
     if (tallas.length > 0) {
       const tallasInsert = tallas.map(t => ({
         modelo_id: modeloId,
@@ -94,7 +87,7 @@ export default function FormularioJoya() {
       await supabase.from('variantes_stock').insert(tallasInsert)
     }
 
-    // Limpiar formulario completo y cerrar
+    // Limpiar y cerrar
     setNombre(''); setCategoria(CATEGORIAS_JOYAS[0]); setTipo(MATERIALES_JOYAS[0]); setDiametro('')
     setFotoPeso(null); setFotoPresentacion(null); setFotoVenta(null)
     setGemas([]); setTallas([])
@@ -106,13 +99,13 @@ export default function FormularioJoya() {
 
   return (
     <>
-      {/* BOTÓN FLOTANTE PERMANENTE (Siempre visible en la esquina inferior derecha) */}
+      {/* BOTÓN FLOTANTE PERMANENTE */}
       <div className="fixed bottom-6 right-6 z-[100]">
         <button 
           onClick={() => setAbierto(true)} 
-          className="bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 md:h-auto md:py-3 px-4 rounded-full shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] flex items-center justify-center gap-2 transform transition-all hover:scale-105 group border-2 border-slate-700"
+          className="bg-slate-900 hover:bg-slate-800 text-white font-bold h-14 w-14 md:w-auto md:h-auto md:py-3 md:px-5 rounded-full shadow-[0_10px_25px_-5px_rgba(0,0,0,0.5)] flex items-center justify-center gap-2 transform transition-all hover:scale-105 border-2 border-slate-700"
         >
-          <span className="text-2xl leading-none">➕</span> 
+          <span className="text-2xl md:text-xl leading-none">➕</span> 
           <span className="hidden md:inline pr-2 whitespace-nowrap">Nueva Joya</span>
         </button>
       </div>
@@ -121,20 +114,15 @@ export default function FormularioJoya() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[110] p-2 sm:p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]">
             
-            {/* ENCABEZADO */}
             <div className="bg-slate-900 p-4 sm:p-6 text-white flex justify-between items-center shrink-0">
               <h2 className="text-xl sm:text-2xl font-bold text-amber-400">💍 Registrar Nueva Joya</h2>
               <button onClick={() => setAbierto(false)} className="text-slate-400 hover:text-white text-2xl sm:text-3xl">✖</button>
             </div>
 
-            {/* CONTENIDO */}
             <div className="p-4 sm:p-6 overflow-y-auto bg-gray-50 flex-1">
               <form id="form-joya" onSubmit={guardarJoya} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* COLUMNA IZQUIERDA */}
                 <div className="space-y-6">
-                  
-                  {/* DATOS PRINCIPALES */}
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 text-sm uppercase">1. Datos Principales</h3>
                     <div className="space-y-4">
@@ -163,11 +151,8 @@ export default function FormularioJoya() {
                     </div>
                   </div>
 
-                  {/* MULTI-TALLAS Y STOCK (Igual a las gemas) */}
                   <div className="bg-amber-50 p-4 rounded-xl shadow-sm border border-amber-200">
                     <h3 className="font-bold text-amber-800 border-b border-amber-200 pb-2 mb-4 text-sm uppercase">2. Tallas y Stock Inicial</h3>
-                    
-                    {/* Inputs para agregar talla temporal */}
                     <div className="grid grid-cols-2 sm:flex gap-2 items-end mb-4">
                       <div className="flex-1"><label className="block text-[10px] font-bold text-amber-700 uppercase">Talla</label><input type="text" value={tallaTemp.medida} onChange={e => setTallaTemp({...tallaTemp, medida: e.target.value})} className="w-full border border-amber-300 p-1.5 rounded text-sm" placeholder="Ej: 16" /></div>
                       <div className="w-16"><label className="block text-[10px] font-bold text-amber-700 uppercase">Peso(g)</label><input type="number" step="0.01" value={tallaTemp.peso} onChange={e => setTallaTemp({...tallaTemp, peso: e.target.value})} className="w-full border border-amber-300 p-1.5 rounded text-sm" placeholder="2.5" /></div>
@@ -176,13 +161,11 @@ export default function FormularioJoya() {
                       <div className="w-16"><label className="block text-[10px] font-bold text-amber-700 uppercase">Stock</label><input type="number" min="1" value={tallaTemp.stock} onChange={e => setTallaTemp({...tallaTemp, stock: Number(e.target.value)})} className="w-full border border-amber-300 p-1.5 rounded text-sm text-center" /></div>
                       <button type="button" onClick={agregarTallaTemporal} className="bg-amber-600 text-white w-full sm:w-10 h-[34px] rounded font-bold hover:bg-amber-700 col-span-2 sm:col-span-1">➕</button>
                     </div>
-
-                    {/* Lista de tallas agregadas */}
                     <ul className="space-y-2">
                       {tallas.length === 0 ? <p className="text-xs text-amber-600/70 italic text-center py-2">No has agregado tallas. Agrega al menos una arriba 👆</p> : 
                         tallas.map((t, index) => (
-                          <li key={index} className="flex justify-between items-center p-2 bg-white rounded border border-amber-100 text-xs shadow-sm">
-                            <div className="flex gap-4">
+                          <li key={index} className="flex justify-between items-center p-2 bg-white rounded border border-amber-100 text-xs shadow-sm overflow-x-auto">
+                            <div className="flex gap-4 min-w-max">
                               <span><strong>Talla:</strong> {t.medida}</span>
                               <span className="text-gray-500"><strong>Peso:</strong> {t.peso || '-'}g</span>
                               <span className="text-red-600"><strong>Costo:</strong> ${t.costo}</span>
@@ -196,7 +179,6 @@ export default function FormularioJoya() {
                     </ul>
                   </div>
 
-                  {/* GEMAS */}
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                     <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 text-sm uppercase">3. Gemas (Opcional)</h3>
                     <div className="flex gap-2 mb-3">
@@ -215,7 +197,6 @@ export default function FormularioJoya() {
                   </div>
                 </div>
 
-                {/* COLUMNA DERECHA: FOTOS */}
                 <div className="space-y-4">
                   <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-full">
                     <h3 className="font-bold text-gray-800 border-b pb-2 mb-4 text-sm uppercase">4. Registro Fotográfico</h3>
@@ -230,7 +211,6 @@ export default function FormularioJoya() {
               </form>
             </div>
 
-            {/* PIE DEL MODAL */}
             <div className="bg-gray-100 border-t p-4 flex justify-end gap-3 shrink-0">
               <button type="button" onClick={() => setAbierto(false)} className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-100 font-bold text-sm">Cancelar</button>
               <button type="submit" form="form-joya" disabled={cargando} className="px-6 py-2 bg-slate-900 text-white rounded-lg shadow-sm hover:bg-slate-800 font-bold text-sm disabled:bg-slate-400">

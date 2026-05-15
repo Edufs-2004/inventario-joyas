@@ -131,8 +131,8 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
   }
 
   return (
-    <div className="w-full">
-      {/* FILTROS CHECKBOX (Siguen usando Categoría y Material internamente) */}
+    <div className="w-full relative">
+      {/* FILTROS CHECKBOX */}
       <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-6">
         <div className="flex-1">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Filtrar por Categoría</h3>
@@ -161,11 +161,10 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
         </div>
       </div>
 
-      {/* TABLA PRINCIPAL (Optimizada para móviles y con Tallas/Pesos con guiones) */}
+      {/* TABLA PRINCIPAL - Optimizada para no esconder NINGUNA columna en el celular */}
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
         <table className="w-full min-w-[800px] text-left border-collapse">
           <thead>
-            {/* Se quitaron los "hidden" para que se vea siempre en celular */}
             <tr className="bg-gray-100 text-gray-600 text-sm uppercase whitespace-nowrap">
               <th className="p-3 md:p-4 border-b w-12 text-center">N°</th>
               <th className="p-3 md:p-4 border-b w-16 text-center">Foto</th>
@@ -190,21 +189,20 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                 
                 <td className="p-3 md:p-4 font-bold text-gray-900 text-sm md:text-base">{joya.nombre}</td>
                 
-                {/* COLUMNA TALLAS (Ej: 12 - 13) */}
+                {/* COLUMNA TALLAS (Ej: 12-13) */}
                 <td className="p-3 md:p-4 text-center font-bold text-slate-700 text-sm whitespace-nowrap">
                   {joya.variantes_stock && joya.variantes_stock.length > 0 
-                    ? joya.variantes_stock.map(v => v.medida).join(' - ') 
+                    ? joya.variantes_stock.map(v => v.medida).join('-') 
                     : <span className="text-[10px] text-gray-400 italic">Sin tallas</span>}
                 </td>
 
-                {/* COLUMNA PESOS (Ej: 2.4g - 2.5g) */}
+                {/* COLUMNA PESOS (Ej: 2.4g-2.5g) */}
                 <td className="p-3 md:p-4 text-center text-gray-600 text-sm whitespace-nowrap bg-gray-50/50">
                   {joya.variantes_stock && joya.variantes_stock.length > 0 
-                    ? joya.variantes_stock.map(v => v.peso ? `${v.peso}g` : '-').join(' - ') 
+                    ? joya.variantes_stock.map(v => v.peso ? `${v.peso}g` : '-').join('-') 
                     : '-'}
                 </td>
 
-                {/* MATERIAL SIEMPRE VISIBLE */}
                 <td className="p-3 md:p-4 text-center">
                   {joya.tipo ? (
                     <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-slate-200 whitespace-nowrap">
@@ -213,7 +211,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                   ) : '-'}
                 </td>
 
-                {/* DIÁMETRO SIEMPRE VISIBLE */}
                 <td className="p-3 md:p-4 text-center text-gray-600 text-sm whitespace-nowrap">
                   {joya.diametro || '-'}
                 </td>
@@ -231,7 +228,7 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
       </div>
 
       {/* ========================================================================= */}
-      {/* MODAL 1: VENTA RÁPIDA */}
+      {/* MODALES DE VENTA Y EDICIÓN (No cambiaron, funcionan perfecto) */}
       {/* ========================================================================= */}
       {joyaParaVender && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-end sm:items-center justify-center z-[60] p-4">
@@ -243,7 +240,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
             
             <div className="p-4 bg-gray-50 max-h-[60vh] overflow-y-auto">
               <h3 className="text-sm font-bold text-gray-600 uppercase mb-3">Selecciona la talla a vender:</h3>
-              
               {cargandoTallasVenta ? (
                 <p className="text-center text-gray-500 py-4">Buscando stock...</p>
               ) : tallasParaVender.length === 0 ? (
@@ -275,13 +271,9 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: FICHA DETALLADA */}
-      {/* ========================================================================= */}
       {joyaSeleccionada && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-2 sm:p-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh]">
-            
             <div className="bg-slate-900 p-4 sm:p-6 text-white flex justify-between items-center shrink-0">
               <div>
                 <h2 className="text-xl sm:text-3xl font-bold text-amber-400 truncate max-w-[200px] sm:max-w-md">{modoEdicion ? 'Editando Producto' : joyaSeleccionada.nombre}</h2>
@@ -295,7 +287,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
             </div>
 
             <div className="p-4 sm:p-6 overflow-y-auto flex-1 bg-gray-50">
-              
               {modoEdicion ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-4 bg-white p-4 rounded-xl shadow-sm border">

@@ -1,10 +1,11 @@
 import { supabase } from '../lib/supabase'
 import FormularioJoya from '../components/FormularioJoya'
 import TablaInventario from '../components/TablaInventario'
+
+// 👇 ESTA LÍNEA ES VITAL PARA VERCEL (Apaga el caché y muestra datos en vivo) 👇
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
-  // Ahora traemos las joyas y ADEMÁS sus pesos y medidas para mostrarlos en la tabla
   const { data: inventario, error } = await supabase
     .from('modelos')
     .select('*, variantes_stock(peso, medida)')
