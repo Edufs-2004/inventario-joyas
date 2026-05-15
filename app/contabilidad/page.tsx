@@ -114,3 +114,5 @@ export default function PaginaContabilidad() {
     </main>
   )
 }
+
+// Versión final 2.0 - [Pon la hora actual]
