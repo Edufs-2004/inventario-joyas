@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import { RegistroVenta, VarianteStock, Modelo } from '../../types/database'
+export const dynamic = 'force-dynamic'
 
 type VentaCompleta = RegistroVenta & {
   variantes_stock: VarianteStock & {

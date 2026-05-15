@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase'
 import FormularioJoya from '../components/FormularioJoya'
 import TablaInventario from '../components/TablaInventario'
+export const dynamic = 'force-dynamic'
 
 export default async function Home() {
   // Ahora traemos las joyas y ADEMÁS sus pesos y medidas para mostrarlos en la tabla
