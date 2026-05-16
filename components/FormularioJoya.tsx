@@ -6,26 +6,31 @@ import { useRouter } from 'next/navigation'
 import { CATEGORIAS_JOYAS, MATERIALES_JOYAS } from '../lib/constantes'
 import SubidorImagen from './SubidorImagen'
 
-export default function FormularioJoya() {
+export default function FormularioJoya({ inventarioInicial = [] }: { inventarioInicial?: any[] }) {
   const [abierto, setAbierto] = useState(false)
   
+  // EXTRAEMOS CATEGORÍAS Y MATERIALES NUEVOS DE LA BASE DE DATOS
+  const categoriasDB = Array.from(new Set(inventarioInicial.map(j => j.categoria))).filter(Boolean) as string[]
+  const materialesDB = Array.from(new Set(inventarioInicial.map(j => j.tipo))).filter(Boolean) as string[]
+  
+  // UNIMOS LAS CONSTANTES CON LAS NUEVAS
+  const categoriasDisponibles = Array.from(new Set([...CATEGORIAS_JOYAS, ...categoriasDB]))
+  const materialesDisponibles = Array.from(new Set([...MATERIALES_JOYAS, ...materialesDB]))
+
   // DATOS PRINCIPALES
   const [nombre, setNombre] = useState('')
-  const [categoria, setCategoria] = useState(CATEGORIAS_JOYAS[0])
-  const [tipo, setTipo] = useState(MATERIALES_JOYAS[0])
+  const [categoria, setCategoria] = useState(categoriasDisponibles[0] || '')
+  const [tipo, setTipo] = useState(materialesDisponibles[0] || '')
   const [diametro, setDiametro] = useState('') 
   
-  // FOTOS
   const [fotoPeso, setFotoPeso] = useState<string | null>(null)
   const [fotoPresentacion, setFotoPresentacion] = useState<string | null>(null)
   const [fotoVenta, setFotoVenta] = useState<string | null>(null)
 
-  // GEMAS
   const [gemas, setGemas] = useState<{nombre: string, medida: string}[]>([])
   const [gemaTempNombre, setGemaTempNombre] = useState('')
   const [gemaTempMedida, setGemaTempMedida] = useState('')
 
-  // SISTEMA MULTI-TALLAS
   type TallaTemp = { medida: string, peso: string, costo: string, precioVenta: string, stock: number }
   const [tallas, setTallas] = useState<TallaTemp[]>([])
   const [tallaTemp, setTallaTemp] = useState<TallaTemp>({ medida: '', peso: '', costo: '', precioVenta: '', stock: 1 })
@@ -87,8 +92,7 @@ export default function FormularioJoya() {
       await supabase.from('variantes_stock').insert(tallasInsert)
     }
 
-    // Limpiar y cerrar
-    setNombre(''); setCategoria(CATEGORIAS_JOYAS[0]); setTipo(MATERIALES_JOYAS[0]); setDiametro('')
+    setNombre(''); setCategoria(categoriasDisponibles[0]); setTipo(materialesDisponibles[0]); setDiametro('')
     setFotoPeso(null); setFotoPresentacion(null); setFotoVenta(null)
     setGemas([]); setTallas([])
     setAbierto(false)
@@ -99,7 +103,6 @@ export default function FormularioJoya() {
 
   return (
     <>
-      {/* BOTÓN FLOTANTE PERMANENTE */}
       <div className="fixed bottom-6 right-6 z-[100]">
         <button 
           onClick={() => setAbierto(true)} 
@@ -131,18 +134,38 @@ export default function FormularioJoya() {
                         <input type="text" required value={nombre} onChange={e => setNombre(e.target.value)} className="w-full border p-2 rounded mt-1 text-sm" placeholder="Ej: Anillo Solitario" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
+                        
+                        {/* INPUTS CON DATALIST (Combo-Box Mágico) */}
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase">Categoría</label>
-                          <select value={categoria} onChange={e => setCategoria(e.target.value)} className="w-full border p-2 rounded mt-1 text-sm bg-white">
-                            {CATEGORIAS_JOYAS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                          </select>
+                          <input 
+                            type="text" 
+                            list="lista-categorias"
+                            required
+                            value={categoria} 
+                            onChange={e => setCategoria(e.target.value)} 
+                            className="w-full border p-2 rounded mt-1 text-sm bg-white"
+                            placeholder="Selecciona o escribe..."
+                          />
+                          <datalist id="lista-categorias">
+                            {categoriasDisponibles.map(cat => <option key={cat} value={cat}></option>)}
+                          </datalist>
                         </div>
                         <div>
                           <label className="block text-xs font-bold text-gray-500 uppercase">Material</label>
-                          <select value={tipo} onChange={e => setTipo(e.target.value)} className="w-full border p-2 rounded mt-1 text-sm bg-white">
-                            {MATERIALES_JOYAS.map(mat => <option key={mat} value={mat}>{mat}</option>)}
-                          </select>
+                          <input 
+                            type="text" 
+                            list="lista-materiales"
+                            value={tipo} 
+                            onChange={e => setTipo(e.target.value)} 
+                            className="w-full border p-2 rounded mt-1 text-sm bg-white"
+                            placeholder="Selecciona o escribe..."
+                          />
+                          <datalist id="lista-materiales">
+                            {materialesDisponibles.map(mat => <option key={mat} value={mat}></option>)}
+                          </datalist>
                         </div>
+
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">Diámetro / Tamaño Base</label>

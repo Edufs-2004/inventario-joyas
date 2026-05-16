@@ -13,8 +13,11 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
   const [filtrosCategoria, setFiltrosCategoria] = useState<string[]>([])
   const [filtrosMaterial, setFiltrosMaterial] = useState<string[]>([])
 
-  const categoriasUnicas = Array.from(new Set(inventarioInicial.map(j => j.categoria))).filter(Boolean)
+  const categoriasUnicas = Array.from(new Set(inventarioInicial.map(j => j.categoria))).filter(Boolean) as string[]
   const materialesUnicos = Array.from(new Set(inventarioInicial.map(j => j.tipo))).filter(Boolean) as string[]
+
+  const categoriasDisponibles = Array.from(new Set([...CATEGORIAS_JOYAS, ...categoriasUnicas]))
+  const materialesDisponibles = Array.from(new Set([...MATERIALES_JOYAS, ...materialesUnicos]))
 
   const toggleFiltroCategoria = (cat: string) => setFiltrosCategoria(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat])
   const toggleFiltroMaterial = (mat: string) => setFiltrosMaterial(prev => prev.includes(mat) ? prev.filter(m => m !== mat) : [...prev, mat])
@@ -99,6 +102,33 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
     else { setModoEdicion(false); setJoyaSeleccionada(null); router.refresh(); }
   }
 
+  // ====================================================================
+  // NUEVO: FUNCIÓN PARA ELIMINAR EL PRODUCTO COMPLETO DE LA BASE DE DATOS
+  // ====================================================================
+  const eliminarJoyaBase = async () => {
+    if (!joyaSeleccionada) return
+    const confirmar = window.confirm(`⚠️ ¿Estás seguro de eliminar el producto "${joyaSeleccionada.nombre}" por completo?\n\nSe borrarán todas sus tallas, gemas y su registro. Esta acción NO se puede deshacer.`)
+    if (!confirmar) return
+
+    setGuardando(true)
+
+    // Primero borramos las tallas y gemas para evitar errores de conexión (Llaves foráneas)
+    await supabase.from('variantes_stock').delete().eq('modelo_id', joyaSeleccionada.id)
+    await supabase.from('gemas_joya').delete().eq('modelo_id', joyaSeleccionada.id)
+    
+    // Luego borramos el modelo principal
+    const { error } = await supabase.from('modelos').delete().eq('id', joyaSeleccionada.id)
+
+    setGuardando(false)
+
+    if (error) {
+      alert("Error al eliminar la joya: " + error.message)
+    } else {
+      setJoyaSeleccionada(null)
+      router.refresh()
+    }
+  }
+
   const agregarVariante = async (e: React.FormEvent) => {
     e.preventDefault(); if (!joyaSeleccionada) return; setGuardandoVariante(true)
     const { data, error } = await supabase.from('variantes_stock').insert([{ modelo_id: joyaSeleccionada.id, medida: nuevaVariante.medida, stock: Number(nuevaVariante.stock), peso: nuevaVariante.peso ? Number(nuevaVariante.peso) : null, costo: Number(nuevaVariante.costo), precio_venta: Number(nuevaVariante.precio_venta) }]).select()
@@ -132,7 +162,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
 
   return (
     <div className="w-full relative">
-      {/* FILTROS CHECKBOX */}
       <div className="bg-white p-4 sm:p-5 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col md:flex-row gap-6">
         <div className="flex-1">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3 border-b pb-1">Filtrar por Categoría</h3>
@@ -161,7 +190,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
         </div>
       </div>
 
-      {/* TABLA PRINCIPAL - Optimizada para no esconder NINGUNA columna en el celular */}
       <div className="bg-white rounded-lg shadow border border-gray-200 overflow-x-auto">
         <table className="w-full min-w-[800px] text-left border-collapse">
           <thead>
@@ -180,29 +208,22 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
             {joyasFiltradas.map((joya, index) => (
               <tr key={joya.id} onClick={() => abrirFicha(joya)} className="hover:bg-amber-50 cursor-pointer transition-colors border-b last:border-0">
                 <td className="p-3 md:p-4 text-center font-bold text-amber-600">{index + 1}</td>
-                
                 <td className="p-2 md:p-3 text-center">
                   {joya.foto_presentacion ? (
                     <img src={joya.foto_presentacion} alt="mini" className="w-10 h-10 md:w-12 md:h-12 object-cover rounded shadow-sm border mx-auto" />
                   ) : <span className="text-xl md:text-2xl opacity-50">💎</span>}
                 </td>
-                
                 <td className="p-3 md:p-4 font-bold text-gray-900 text-sm md:text-base">{joya.nombre}</td>
-                
-                {/* COLUMNA TALLAS (Ej: 12-13) */}
                 <td className="p-3 md:p-4 text-center font-bold text-slate-700 text-sm whitespace-nowrap">
                   {joya.variantes_stock && joya.variantes_stock.length > 0 
                     ? joya.variantes_stock.map(v => v.medida).join('-') 
                     : <span className="text-[10px] text-gray-400 italic">Sin tallas</span>}
                 </td>
-
-                {/* COLUMNA PESOS (Ej: 2.4g-2.5g) */}
                 <td className="p-3 md:p-4 text-center text-gray-600 text-sm whitespace-nowrap bg-gray-50/50">
                   {joya.variantes_stock && joya.variantes_stock.length > 0 
                     ? joya.variantes_stock.map(v => v.peso ? `${v.peso}g` : '-').join('-') 
                     : '-'}
                 </td>
-
                 <td className="p-3 md:p-4 text-center">
                   {joya.tipo ? (
                     <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[11px] font-bold uppercase border border-slate-200 whitespace-nowrap">
@@ -210,11 +231,9 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                     </span>
                   ) : '-'}
                 </td>
-
                 <td className="p-3 md:p-4 text-center text-gray-600 text-sm whitespace-nowrap">
                   {joya.diametro || '-'}
                 </td>
-                
                 <td className="p-3 md:p-4 text-right">
                   <button onClick={(e) => abrirModalVenta(e, joya)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-xs md:text-sm font-bold shadow-sm transition-colors whitespace-nowrap">
                     🤝 Vender
@@ -227,9 +246,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
         </table>
       </div>
 
-      {/* ========================================================================= */}
-      {/* MODALES DE VENTA Y EDICIÓN (No cambiaron, funcionan perfecto) */}
-      {/* ========================================================================= */}
       {joyaParaVender && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-end sm:items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-up sm:animate-none">
@@ -237,7 +253,6 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
               <h2 className="text-lg font-bold text-amber-400 truncate pr-4">Vender: {joyaParaVender.nombre}</h2>
               <button onClick={() => setJoyaParaVender(null)} className="text-slate-400 hover:text-white text-2xl">✖</button>
             </div>
-            
             <div className="p-4 bg-gray-50 max-h-[60vh] overflow-y-auto">
               <h3 className="text-sm font-bold text-gray-600 uppercase mb-3">Selecciona la talla a vender:</h3>
               {cargandoTallasVenta ? (
@@ -292,10 +307,36 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                   <div className="space-y-4 bg-white p-4 rounded-xl shadow-sm border">
                     <h3 className="font-bold text-gray-800 border-b pb-2">Modificar Datos Principales</h3>
                     <div><label className="block text-sm font-bold text-gray-500 uppercase">Nombre</label><input type="text" value={formEdit.nombre} onChange={e => setFormEdit({...formEdit, nombre: e.target.value})} className="w-full border p-2 rounded mt-1" /></div>
+                    
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div><label className="block text-sm font-bold text-gray-500 uppercase">Categoría</label><select value={formEdit.categoria} onChange={e => setFormEdit({...formEdit, categoria: e.target.value})} className="w-full border p-2 rounded mt-1 bg-white">{CATEGORIAS_JOYAS.map(cat => <option key={cat} value={cat}>{cat}</option>)}</select></div>
-                      <div><label className="block text-sm font-bold text-gray-500 uppercase">Material</label><select value={formEdit.tipo || ''} onChange={e => setFormEdit({...formEdit, tipo: e.target.value})} className="w-full border p-2 rounded mt-1 bg-white">{MATERIALES_JOYAS.map(mat => <option key={mat} value={mat}>{mat}</option>)}</select></div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-500 uppercase">Categoría</label>
+                        <input 
+                          type="text"
+                          list="edit-cat-list"
+                          value={formEdit.categoria || ''} 
+                          onChange={e => setFormEdit({...formEdit, categoria: e.target.value})} 
+                          className="w-full border p-2 rounded mt-1 bg-white" 
+                        />
+                        <datalist id="edit-cat-list">
+                          {categoriasDisponibles.map(cat => <option key={cat} value={cat}></option>)}
+                        </datalist>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-gray-500 uppercase">Material</label>
+                        <input 
+                          type="text"
+                          list="edit-mat-list"
+                          value={formEdit.tipo || ''} 
+                          onChange={e => setFormEdit({...formEdit, tipo: e.target.value})} 
+                          className="w-full border p-2 rounded mt-1 bg-white" 
+                        />
+                        <datalist id="edit-mat-list">
+                          {materialesDisponibles.map(mat => <option key={mat} value={mat}></option>)}
+                        </datalist>
+                      </div>
                     </div>
+
                     <div><label className="block text-sm font-bold text-gray-500 uppercase">Diámetro / Base</label><input type="text" value={formEdit.diametro || ''} onChange={e => setFormEdit({...formEdit, diametro: e.target.value})} className="w-full border p-2 rounded mt-1" /></div>
                   </div>
 
@@ -311,9 +352,18 @@ export default function TablaInventario({ inventarioInicial }: { inventarioInici
                   <div className="mb-6 bg-white p-4 rounded-xl shadow-sm border">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-2">
                       <h3 className="text-lg font-bold text-gray-800">📸 Registro Fotográfico</h3>
-                      <button onClick={() => setModoEdicion(true)} className="px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm rounded shadow hover:bg-blue-700 w-full sm:w-auto">✏️ Editar Datos o Fotos</button>
+                      
+                      {/* AQUÍ ESTÁ EL NUEVO BOTÓN DE ELIMINAR */}
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <button onClick={eliminarJoyaBase} disabled={guardando} className="flex-1 sm:flex-none px-4 py-2 bg-red-50 text-red-600 border border-red-200 text-xs sm:text-sm rounded shadow-sm hover:bg-red-100 font-bold transition-colors">
+                          🗑️ Eliminar Joya
+                        </button>
+                        <button onClick={() => setModoEdicion(true)} disabled={guardando} className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white text-xs sm:text-sm rounded shadow hover:bg-blue-700 font-bold transition-colors">
+                          ✏️ Editar Datos o Fotos
+                        </button>
+                      </div>
+
                     </div>
-                    
                     <div className="flex sm:grid sm:grid-cols-3 gap-4 overflow-x-auto pb-2 snap-x">
                       <div className="border rounded bg-gray-100 flex flex-col items-center justify-between p-2 min-w-[200px] snap-center"><span className="text-xs font-bold text-gray-500 mb-2 uppercase">Presentación</span>{joyaSeleccionada.foto_presentacion ? <><img src={joyaSeleccionada.foto_presentacion} alt="Presentación" className="w-full h-32 sm:h-48 object-contain bg-white border rounded" /><a href={joyaSeleccionada.foto_presentacion} target="_blank" download className="mt-2 text-blue-600 font-bold text-xs hover:underline">📥 Descargar</a></> : <span className="h-32 sm:h-48 flex items-center text-gray-400 text-xs">Sin foto</span>}</div>
                       <div className="border rounded bg-gray-100 flex flex-col items-center justify-between p-2 min-w-[200px] snap-center"><span className="text-xs font-bold text-gray-500 mb-2 uppercase">Pesa</span>{joyaSeleccionada.foto_peso ? <><img src={joyaSeleccionada.foto_peso} alt="Peso" className="w-full h-32 sm:h-48 object-contain bg-white border rounded" /><a href={joyaSeleccionada.foto_peso} target="_blank" download className="mt-2 text-blue-600 font-bold text-xs hover:underline">📥 Descargar</a></> : <span className="h-32 sm:h-48 flex items-center text-gray-400 text-xs">Sin foto</span>}</div>

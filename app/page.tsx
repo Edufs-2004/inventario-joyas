@@ -1,8 +1,8 @@
 import { supabase } from '../lib/supabase'
 import FormularioJoya from '../components/FormularioJoya'
 import TablaInventario from '../components/TablaInventario'
+import Link from 'next/link'
 
-// 👇 ESTA LÍNEA ES VITAL PARA VERCEL (Apaga el caché y muestra datos en vivo) 👇
 export const dynamic = 'force-dynamic'
 
 export default async function Home() {
@@ -17,14 +17,22 @@ export default async function Home() {
 
   return (
     <main className="p-4 md:p-10 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
           Inventario de Joyas 💍
         </h1>
+        
+        <Link 
+          href="/ventas" 
+          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg shadow-md transition-colors flex items-center gap-2"
+        >
+          📊 Ver Panel de Ventas
+        </Link>
       </div>
 
-      <FormularioJoya />
-      <TablaInventario inventarioInicial={inventario as any[]} />
+      {/* Ahora le pasamos los datos también al formulario */}
+      <FormularioJoya inventarioInicial={inventario || []} />
+      <TablaInventario inventarioInicial={inventario || []} />
     </main>
   )
 }
