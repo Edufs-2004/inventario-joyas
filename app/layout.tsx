@@ -35,11 +35,17 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <span className="text-xl">💍</span>
                 {sidebarAbierto && <span>Inventario</span>}
               </Link>
+              
+              {/* NUEVO BOTÓN DE CATÁLOGO */}
+              <Link href="/catalogo" onClick={() => setSidebarAbierto(false)} className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-800 text-slate-400 transition-all">
+                <span className="text-xl">📱</span>
+                {sidebarAbierto && <span>Armar Catálogo</span>}
+              </Link>
+
               <Link href="/ventas" onClick={() => setSidebarAbierto(false)} className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-800 text-slate-400 transition-all">
                 <span className="text-xl">📊</span>
                 {sidebarAbierto && <span>Ventas</span>}
               </Link>
-              {/* AQUÍ HABILITAMOS EL LINK A CONTABILIDAD */}
               <Link href="/contabilidad" onClick={() => setSidebarAbierto(false)} className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-slate-800 text-slate-400 transition-all">
                 <span className="text-xl">💰</span>
                 {sidebarAbierto && <span>Contabilidad</span>}
