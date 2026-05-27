@@ -10,7 +10,6 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
   const [busqueda, setBusqueda] = useState('')
   const [filtroCat, setFiltroCat] = useState('')
   
-  // ESTADO PARA LA IMAGEN EN PANTALLA COMPLETA
   const [imagenAmpliada, setImagenAmpliada] = useState<string | null>(null)
 
   let joyasMostrar = inventario.filter(j => j.foto_venta)
@@ -64,28 +63,23 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
               const precios = joya.variantes_stock?.map((v: any) => v.precio_venta) || []
               const precioMin = precios.length > 0 ? Math.min(...precios) : 0
 
-              // === CREACIÓN DEL CÓDIGO MAESTRO ===
-              // 1. Tomar la primera letra de la categoría (A, P, C, etc.)
               const letra = joya.categoria ? joya.categoria.charAt(0).toUpperCase() : 'J'
-              // 2. Tomar el costo de la primera variante (o 0 si no hay)
               const costoBase = joya.variantes_stock?.[0]?.costo || '000'
               const codigoProducto = `${letra}${costoBase}`
 
-              // === TALLAS DISPONIBLES (Filtrar solo las que tienen stock) ===
               const tallasDisponibles = joya.variantes_stock
                 ?.filter((v: any) => v.stock > 0)
                 .map((v: any) => v.medida)
                 .join(' - ')
 
-              // === GEMAS DE LA JOYA ===
               const listaGemas = joya.gemas_joya?.map((g: any) => g.nombre).join(', ')
 
               return (
                 <div key={joya.id} className="bg-white rounded-3xl overflow-hidden shadow-lg border border-gray-100 hover:shadow-2xl transition-shadow duration-300 flex flex-col">
                   
-                  {/* IMAGEN CLICKABLE */}
+                  {/* CORRECCIÓN: Agregado overflow-hidden al contenedor principal */}
                   <div 
-                    className="relative aspect-square cursor-pointer group"
+                    className="relative aspect-square cursor-pointer group overflow-hidden"
                     onClick={() => setImagenAmpliada(joya.foto_venta)}
                   >
                     <img 
@@ -93,8 +87,9 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
                       alt={joya.nombre} 
                       className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
-                      <span className="text-white opacity-0 group-hover:opacity-100 bg-black/60 px-4 py-2 rounded-full font-bold text-sm shadow-lg backdrop-blur-sm">
+                    {/* CORRECCIÓN: Usando opacity-0 nativo para evitar el cuadro negro en celulares */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                      <span className="text-white bg-black/60 px-4 py-2 rounded-full font-bold text-sm shadow-lg backdrop-blur-sm">
                         🔍 Ver completa
                       </span>
                     </div>
@@ -112,7 +107,6 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
                     
                     <h2 className="text-lg font-bold text-gray-800 mb-3">{joya.nombre}</h2>
                     
-                    {/* INFO DE TALLAS Y GEMAS */}
                     <div className="space-y-2 mb-4 flex-1">
                       {tallasDisponibles ? (
                         <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded border border-gray-100">
@@ -144,9 +138,6 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
         </div>
       </div>
 
-      {/* ========================================= */}
-      {/* MODAL: VER IMAGEN EN TAMAÑO COMPLETO */}
-      {/* ========================================= */}
       {imagenAmpliada && (
         <div 
           className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-2 sm:p-6 backdrop-blur-sm cursor-zoom-out animate-fade-in"
@@ -158,7 +149,6 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
           >
             ✖
           </button>
-          {/* Se usa object-contain para que la foto respete su formato original vertical/horizontal sin recortarse */}
           <img 
             src={imagenAmpliada} 
             alt="Foto Completa" 
@@ -166,7 +156,6 @@ export default function CatalogoPublico({ inventario }: { inventario: any[] }) {
           />
         </div>
       )}
-
     </div>
   )
 }
