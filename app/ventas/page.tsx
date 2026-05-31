@@ -2,227 +2,221 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
-import { RegistroVenta, VarianteStock, Modelo } from '../../types/database'
-export const dynamic = 'force-dynamic'
 
-type VentaCompleta = RegistroVenta & {
-  variantes_stock: VarianteStock & {
-    modelos: Modelo
-  }
-}
-
-const ESTADOS = ['Negociando', 'Guardado', 'Por enviar', 'Vendido']
-
-export default function PaginaVentas() {
-  const [ventas, setVentas] = useState<VentaCompleta[]>([])
-  const [cargando, setCargando] = useState(true)
+export default function VentasYGestionPage() {
+  const [pestaña, setPestaña] = useState<'ventas' | 'taller'>('ventas')
   
-  const [ventaEditando, setVentaEditando] = useState<VentaCompleta | null>(null)
-  const [formVenta, setFormVenta] = useState<Partial<RegistroVenta>>({})
-  const [guardando, setGuardando] = useState(false)
+  // ESTADOS DE VENTAS
+  const [ventas, setVentas] = useState<any[]>([])
+  const [cargandoVentas, setCargandoVentas] = useState(true)
 
-  const cargarVentas = async () => {
-    setCargando(true)
-    const { data, error } = await supabase
-      .from('registro_ventas')
-      .select(`*, variantes_stock (*, modelos (*))`)
-      .order('fecha_inicio', { ascending: false })
-
-    if (!error && data) setVentas(data as any)
-    setCargando(false)
-  }
+  // ESTADOS DEL TALLER
+  const [tareas, setTareas] = useState<any[]>([])
+  const [cargandoTareas, setCargandoTareas] = useState(true)
+  const [nuevaTarea, setNuevaTarea] = useState({ joya_nombre: '', tipo_trabajo: 'Reparación' })
+  const [guardandoTarea, setGuardandoTarea] = useState(false)
 
   useEffect(() => {
     cargarVentas()
+    cargarTareas()
   }, [])
 
-  const guardarEdicionVenta = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!ventaEditando) return
-    setGuardando(true)
-
-    const esNuevaVentaCerrada = formVenta.estado === 'Vendido' && ventaEditando.estado !== 'Vendido'
-    const fechaCierre = esNuevaVentaCerrada ? new Date().toISOString() : formVenta.fecha_cierre
-
-    const { error } = await supabase
+  // ===================== LÓGICA DE VENTAS =====================
+  const cargarVentas = async () => {
+    setCargandoVentas(true)
+    const { data } = await supabase
       .from('registro_ventas')
-      .update({
-        estado: formVenta.estado,
-        precio_final_efectivo: formVenta.precio_final_efectivo ? Number(formVenta.precio_final_efectivo) : null,
-        costo_envio: formVenta.costo_envio ? Number(formVenta.costo_envio) : null,
-        nombre_cliente: formVenta.nombre_cliente,
-        direccion_envio: formVenta.direccion_envio,
-        comuna: formVenta.comuna,
-        telefono_contacto: formVenta.telefono_contacto,
-        notas_internas: formVenta.notas_internas,
-        fecha_cierre: fechaCierre
-      })
-      .eq('id', ventaEditando.id)
-
-    if (!error && esNuevaVentaCerrada && ventaEditando.variantes_stock) {
-      const stockActual = ventaEditando.variantes_stock.stock
-      await supabase
-        .from('variantes_stock')
-        .update({ stock: Math.max(0, stockActual - 1) })
-        .eq('id', ventaEditando.variantes_stock.id)
-    }
-
-    setGuardando(false)
-
-    if (error) {
-      alert("Error al actualizar la venta: " + error.message)
-    } else {
-      setVentaEditando(null)
-      cargarVentas()
-    }
-  }
-
-  // FUNCIÓN PARA CANCELAR Y ELIMINAR LA VENTA
-  const eliminarVenta = async () => {
-    if (!ventaEditando) return
-    const confirmar = window.confirm("¿Estás seguro de cancelar y eliminar esta venta? Esta acción no se puede deshacer.")
-    if (!confirmar) return
-
-    setGuardando(true)
-
-    // Si la venta ya estaba descontada del stock ("Vendido"), devolvemos el stock.
-    if (ventaEditando.estado === 'Vendido' && ventaEditando.variantes_stock) {
-      await supabase
-        .from('variantes_stock')
-        .update({ stock: ventaEditando.variantes_stock.stock + 1 })
-        .eq('id', ventaEditando.variantes_stock.id)
-    }
-
-    const { error } = await supabase.from('registro_ventas').delete().eq('id', ventaEditando.id)
+      .select('*, variantes_stock(medida, modelos(nombre))')
+      .order('created_at', { ascending: false })
     
-    setGuardando(false)
-    if (error) alert("Error al eliminar: " + error.message)
-    else {
-      setVentaEditando(null)
-      cargarVentas()
-    }
+    if (data) setVentas(data)
+    setCargandoVentas(false)
   }
 
-  const calcularGanancia = () => {
-    if (!formVenta.precio_final_efectivo || !ventaEditando) return null
-    const costoTotal = ventaEditando.costo_historico + Number(formVenta.costo_envio || 0)
-    return Number(formVenta.precio_final_efectivo) - costoTotal
+  const actualizarEstadoVenta = async (id: string, nuevoEstado: string) => {
+    await supabase.from('registro_ventas').update({ estado: nuevoEstado }).eq('id', id)
+    cargarVentas()
+  }
+
+  const eliminarVenta = async (id: string) => {
+    if(!window.confirm('¿Borrar esta venta por completo?')) return
+    await supabase.from('registro_ventas').delete().eq('id', id)
+    cargarVentas()
+  }
+
+  // ===================== LÓGICA DEL TALLER =====================
+  const cargarTareas = async () => {
+    setCargandoTareas(true)
+    const { data } = await supabase.from('tareas_taller').select('*').order('created_at', { ascending: false })
+    if (data) setTareas(data)
+    setCargandoTareas(false)
+  }
+
+  const agregarTarea = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setGuardandoTarea(true)
+    await supabase.from('tareas_taller').insert([{ joya_nombre: nuevaTarea.joya_nombre, tipo_trabajo: nuevaTarea.tipo_trabajo, estado: 'Pendiente' }])
+    setNuevaTarea({ joya_nombre: '', tipo_trabajo: 'Reparación' })
+    setGuardandoTarea(false)
+    cargarTareas()
+  }
+
+  const moverTarea = async (id: string, nuevoEstado: string) => {
+    if (nuevoEstado === 'Finalizado') {
+      if(window.confirm('¿Marcar como finalizado? Esto borrará la tarea de la lista para no acumular basura.')) {
+        await supabase.from('tareas_taller').delete().eq('id', id)
+      }
+    } else {
+      await supabase.from('tareas_taller').update({ estado: nuevoEstado }).eq('id', id)
+    }
+    cargarTareas()
   }
 
   return (
-    <main className="p-4 md:p-10 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-6">Panel de Ventas 📊</h1>
+    <div className="p-4 md:p-10 bg-gray-50 min-h-screen">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">Panel de Gestión 📋</h1>
+        <p className="text-gray-500 mt-1">Controla tus ventas activas y las reparaciones del taller.</p>
+      </div>
 
-      {cargando ? (
-        <div className="text-center p-10 font-bold text-gray-500">Cargando tablero...</div>
-      ) : (
-        <div className="flex gap-4 overflow-x-auto pb-6 snap-x h-[75vh]">
-          {ESTADOS.map(estado => {
-            const ventasColumna = ventas.filter(v => v.estado === estado)
-            return (
-              <div key={estado} className="bg-gray-200/60 rounded-xl p-3 min-w-[280px] md:min-w-[320px] max-w-[320px] flex flex-col snap-center border shadow-inner">
-                <div className="flex justify-between items-center mb-4 px-2">
-                  <h2 className="font-bold text-gray-700 uppercase text-sm">{estado}</h2>
-                  <span className="bg-white px-2 py-1 rounded-full text-xs font-bold text-gray-500">{ventasColumna.length}</span>
-                </div>
-                <div className="flex flex-col gap-3 overflow-y-auto pr-1 flex-1">
-                  {ventasColumna.map(venta => (
-                    <div key={venta.id} onClick={() => {setVentaEditando(venta); setFormVenta(venta)}} className="bg-white p-3 rounded-lg shadow-sm border cursor-pointer hover:border-amber-400 group">
-                      <div className="flex gap-3 items-start">
-                        {venta.variantes_stock?.modelos?.foto_presentacion ? (
-                          <img src={venta.variantes_stock.modelos.foto_presentacion} alt="Joya" className="w-12 h-12 object-cover rounded bg-gray-50 border" />
-                        ) : <div className="w-12 h-12 bg-amber-50 rounded border flex items-center justify-center text-xl">💍</div>}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-gray-800 text-sm truncate">{venta.variantes_stock?.modelos?.nombre || 'Desconocido'}</h3>
-                          <p className="text-xs text-gray-500 mt-0.5">Talla: <span className="font-bold text-gray-700">{venta.variantes_stock?.medida}</span></p>
-                          <div className="mt-2 flex justify-between items-center">
-                            <span className="text-green-600 font-bold text-sm">${venta.precio_final_efectivo || venta.precio_lista_historico}</span>
-                            {venta.nombre_cliente && <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-1 rounded truncate max-w-[80px]">👤 {venta.nombre_cliente}</span>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {ventasColumna.length === 0 && <div className="border-2 border-dashed border-gray-300 rounded-lg h-24 flex items-center justify-center text-gray-400 text-xs">Sin ventas</div>}
-                </div>
-              </div>
-            )
-          })}
+      {/* TABS DE NAVEGACIÓN */}
+      <div className="flex gap-4 mb-8 border-b pb-2 overflow-x-auto">
+        <button onClick={() => setPestaña('ventas')} className={`px-6 py-2 rounded-t-lg font-bold transition-colors whitespace-nowrap ${pestaña === 'ventas' ? 'bg-slate-900 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
+          💰 Negociaciones y Ventas
+        </button>
+        <button onClick={() => setPestaña('taller')} className={`px-6 py-2 rounded-t-lg font-bold transition-colors whitespace-nowrap ${pestaña === 'taller' ? 'bg-amber-500 text-slate-900' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}>
+          🛠️ Cola de Taller
+        </button>
+      </div>
+
+      {/* ========================================================= */}
+      {/* PESTAÑA: VENTAS */}
+      {/* ========================================================= */}
+      {pestaña === 'ventas' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+          {cargandoVentas ? <p className="p-10 text-center text-gray-500">Cargando ventas...</p> : (
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-gray-100 text-gray-600 text-sm uppercase whitespace-nowrap">
+                  <th className="p-4 border-b">Fecha</th>
+                  <th className="p-4 border-b">Joya</th>
+                  <th className="p-4 border-b text-center">Talla</th>
+                  <th className="p-4 border-b text-center">Precio Pactado</th>
+                  <th className="p-4 border-b text-center">Estado</th>
+                  <th className="p-4 border-b text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ventas.length === 0 ? <tr><td colSpan={6} className="p-8 text-center text-gray-400">No hay ventas registradas.</td></tr> : ventas.map(v => (
+                  <tr key={v.id} className="hover:bg-gray-50 border-b">
+                    <td className="p-4 text-sm text-gray-600">{new Date(v.created_at).toLocaleDateString('es-CL')}</td>
+                    <td className="p-4 font-bold text-slate-800">{v.variantes_stock?.modelos?.nombre || 'Joya Eliminada'}</td>
+                    <td className="p-4 text-center text-sm">{v.variantes_stock?.medida || '-'}</td>
+                    <td className="p-4 text-center font-bold text-emerald-600">${v.precio_lista_historico}</td>
+                    <td className="p-4 text-center">
+                      <select 
+                        value={v.estado} 
+                        onChange={(e) => actualizarEstadoVenta(v.id, e.target.value)}
+                        className={`text-xs font-bold px-3 py-1.5 rounded-full outline-none cursor-pointer ${v.estado === 'Finalizada' ? 'bg-emerald-100 text-emerald-800' : v.estado === 'Cancelado' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}
+                      >
+                        <option value="Negociando">🟠 Negociando</option>
+                        <option value="Finalizada">✅ Finalizada</option>
+                        <option value="Cancelado">❌ Cancelado</option>
+                      </select>
+                    </td>
+                    <td className="p-4 text-right">
+                      <button onClick={() => eliminarVenta(v.id)} className="text-red-500 hover:text-red-700 text-xs font-bold px-2">Borrar</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
 
-      {ventaEditando && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh]">
-            <div className="bg-slate-900 p-4 text-white flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-amber-400">Detalle de Venta</h2>
-                <p className="text-xs text-slate-300 mt-1">ID: {ventaEditando.id.split('-')[0]}</p>
-              </div>
-              <button onClick={() => setVentaEditando(null)} className="text-slate-400 hover:text-white text-2xl">✖</button>
-            </div>
-            <div className="p-4 overflow-y-auto flex-1 bg-gray-50">
-              <div className="bg-white p-4 rounded-xl border shadow-sm mb-6 flex gap-4 items-center">
-                {ventaEditando.variantes_stock?.modelos?.foto_presentacion ? (
-                  <img src={ventaEditando.variantes_stock.modelos.foto_presentacion} alt="Joya" className="w-20 h-20 object-cover rounded border" />
-                ) : <div className="w-20 h-20 bg-gray-100 rounded border flex items-center justify-center text-3xl">💍</div>}
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-800 text-lg">{ventaEditando.variantes_stock?.modelos?.nombre}</h3>
-                  <div className="flex gap-4 mt-1 text-sm">
-                    <p className="text-gray-500">Talla: <span className="font-bold text-gray-800">{ventaEditando.variantes_stock?.medida}</span></p>
-                    <p className="text-gray-500">Costo Joya: <span className="font-bold text-red-600">${ventaEditando.costo_historico}</span></p>
-                  </div>
+      {/* ========================================================= */}
+      {/* PESTAÑA: TALLER */}
+      {/* ========================================================= */}
+      {pestaña === 'taller' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <div className="lg:col-span-1">
+            <form onSubmit={agregarTarea} className="bg-amber-50 p-6 rounded-2xl shadow-sm border border-amber-200">
+              <h3 className="font-bold text-amber-800 border-b border-amber-200 pb-2 mb-4">➕ Enviar al Taller</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Nombre de la Joya / Cliente</label>
+                  <input type="text" required placeholder="Ej: Anillo de María..." value={nuevaTarea.joya_nombre} onChange={e => setNuevaTarea({...nuevaTarea, joya_nombre: e.target.value})} className="w-full border-none p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500 shadow-inner" />
                 </div>
-              </div>
-              <form id="form-venta" onSubmit={guardarEdicionVenta} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div className="bg-amber-50 p-4 rounded-xl border border-amber-200">
-                    <label className="block text-xs font-bold text-amber-800 uppercase mb-2">Estado del Proceso</label>
-                    <select value={formVenta.estado} onChange={e => setFormVenta({...formVenta, estado: e.target.value as any})} className="w-full border-amber-300 rounded p-2 text-sm font-bold bg-white text-gray-800">
-                      {ESTADOS.map(est => <option key={est} value={est}>{est}</option>)}
-                    </select>
-                  </div>
-                  <div className="bg-white p-4 rounded-xl border shadow-sm">
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Precio Final Cerrado ($)</label>
-                    <input type="number" value={formVenta.precio_final_efectivo || ''} onChange={e => setFormVenta({...formVenta, precio_final_efectivo: e.target.value ? Number(e.target.value) : null})} className="w-full border rounded p-2 text-lg font-bold text-green-600 mb-4" />
-                    
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Costo de Envío ($)</label>
-                    <input type="number" value={formVenta.costo_envio || ''} onChange={e => setFormVenta({...formVenta, costo_envio: e.target.value ? Number(e.target.value) : null})} className="w-full border rounded p-2 text-md font-bold text-red-500" placeholder="Ej: 3000" />
-
-                    {formVenta.precio_final_efectivo && (
-                      <div className="mt-4 p-3 rounded bg-slate-50 border flex justify-between text-sm">
-                        <span className="text-slate-500 font-bold uppercase text-[10px]">Utilidad Neta (Descontando costos):</span>
-                        <span className={`font-bold text-lg ${calcularGanancia()! > 0 ? 'text-green-600' : 'text-red-600'}`}>${calcularGanancia()}</span>
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <label className="block text-xs font-bold text-amber-700 uppercase mb-1">Trabajo a realizar</label>
+                  <select value={nuevaTarea.tipo_trabajo} onChange={e => setNuevaTarea({...nuevaTarea, tipo_trabajo: e.target.value})} className="w-full border-none p-3 rounded-xl text-sm outline-none focus:ring-2 focus:ring-amber-500 shadow-inner">
+                    <option value="Reparación">🛠️ Reparación / Ajuste</option>
+                    <option value="Limpieza">✨ Limpieza / Pulido</option>
+                    <option value="Fabricación">💍 Fabricación Nueva</option>
+                  </select>
                 </div>
-                <div className="space-y-3 bg-white p-4 rounded-xl border shadow-sm">
-                  <h3 className="text-sm font-bold text-gray-700 uppercase border-b pb-2 mb-3">Datos Logísticos</h3>
-                  <div><label className="block text-[10px] font-bold text-gray-500 uppercase">Cliente</label><input type="text" value={formVenta.nombre_cliente || ''} onChange={e => setFormVenta({...formVenta, nombre_cliente: e.target.value})} className="w-full border-b p-1 text-sm bg-transparent" /></div>
-                  <div><label className="block text-[10px] font-bold text-gray-500 uppercase">Teléfono</label><input type="text" value={formVenta.telefono_contacto || ''} onChange={e => setFormVenta({...formVenta, telefono_contacto: e.target.value})} className="w-full border-b p-1 text-sm bg-transparent" /></div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="col-span-2"><label className="block text-[10px] font-bold text-gray-500 uppercase">Dirección</label><input type="text" value={formVenta.direccion_envio || ''} onChange={e => setFormVenta({...formVenta, direccion_envio: e.target.value})} className="w-full border-b p-1 text-sm bg-transparent" /></div>
-                    <div className="col-span-2"><label className="block text-[10px] font-bold text-gray-500 uppercase">Comuna</label><input type="text" value={formVenta.comuna || ''} onChange={e => setFormVenta({...formVenta, comuna: e.target.value})} className="w-full border-b p-1 text-sm bg-transparent" /></div>
-                  </div>
-                  <div><label className="block text-[10px] font-bold text-gray-500 uppercase mt-2">Notas</label><textarea value={formVenta.notas_internas || ''} onChange={e => setFormVenta({...formVenta, notas_internas: e.target.value})} rows={2} className="w-full border rounded p-2 text-sm mt-1" /></div>
-                </div>
-              </form>
-            </div>
-            <div className="bg-gray-100 p-4 flex justify-between gap-3 border-t">
-              <button onClick={eliminarVenta} disabled={guardando} className="px-4 py-2 bg-red-100 border border-red-300 rounded-lg font-bold text-red-600 hover:bg-red-200 text-sm">
-                🗑️ Cancelar Venta
-              </button>
-              <div className="flex gap-2">
-                <button onClick={() => setVentaEditando(null)} className="px-6 py-2 bg-white border rounded-lg font-bold text-gray-600 text-sm">Cerrar</button>
-                <button type="submit" form="form-venta" disabled={guardando} className="px-6 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 text-sm">
-                  {guardando ? 'Guardando...' : '💾 Guardar Cambios'}
+                <button type="submit" disabled={guardandoTarea} className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 rounded-xl shadow transition-colors mt-2">
+                  {guardandoTarea ? 'Añadiendo...' : 'Añadir a la Cola'}
                 </button>
               </div>
+            </form>
+            <div className="mt-4 p-4 bg-blue-50 text-blue-800 text-xs rounded-xl border border-blue-200">
+              ℹ️ <strong>Nota:</strong> Cuando marques un trabajo como "Finalizado", se eliminará automáticamente de esta lista para mantener tu panel limpio.
             </div>
           </div>
+
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-200 p-2 sm:p-4">
+            {cargandoTareas ? <p className="text-center py-10 text-gray-500">Cargando taller...</p> : tareas.length === 0 ? (
+              <div className="text-center py-16 text-gray-400">
+                <span className="text-4xl block mb-2">✨</span>
+                <p className="font-bold">No hay trabajos pendientes en el taller.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tareas.map(tarea => (
+                  <div key={tarea.id} className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 rounded-xl border ${tarea.estado === 'Enviado' ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'} shadow-sm gap-4`}>
+                    
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${tarea.tipo_trabajo === 'Limpieza' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {tarea.tipo_trabajo}
+                        </span>
+                        <span className="text-xs text-gray-400">{new Date(tarea.created_at).toLocaleDateString('es-CL')}</span>
+                      </div>
+                      <h4 className="font-bold text-gray-800 text-lg">{tarea.joya_nombre}</h4>
+                    </div>
+
+                    <div className="flex w-full sm:w-auto gap-2">
+                      <button 
+                        onClick={() => moverTarea(tarea.id, 'Pendiente')} 
+                        className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold transition-all ${tarea.estado === 'Pendiente' ? 'bg-amber-500 text-white shadow-md scale-105' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      >
+                        🕒 Pendiente
+                      </button>
+                      <button 
+                        onClick={() => moverTarea(tarea.id, 'Enviado')} 
+                        className={`flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold transition-all ${tarea.estado === 'Enviado' ? 'bg-blue-500 text-white shadow-md scale-105' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      >
+                        🚚 Enviado
+                      </button>
+                      <button 
+                        onClick={() => moverTarea(tarea.id, 'Finalizado')} 
+                        className="flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 hover:bg-emerald-500 hover:text-white transition-all"
+                      >
+                        ✅ Finalizar
+                      </button>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
-    </main>
+    </div>
   )
 }
