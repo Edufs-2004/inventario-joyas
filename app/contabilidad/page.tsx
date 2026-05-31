@@ -11,31 +11,27 @@ export default function ContabilidadPage() {
   const [gastos, setGastos] = useState<any[]>([])
   const [cargando, setCargando] = useState(true)
 
-  const [nuevoGasto, setNuevoGasto] = useState({
-    fecha: new Date().toISOString().split('T')[0],
-    categoria: 'Taller y Reparación',
-    descripcion: '',
-    monto: ''
-  })
+  const [nuevoGasto, setNuevoGasto] = useState({ fecha: new Date().toISOString().split('T')[0], categoria: 'Taller y Reparación', descripcion: '', monto: '' })
   const [guardando, setGuardando] = useState(false)
 
   const cargarDatos = async () => {
     setCargando(true)
     
-    // Traemos TODO sin filtrar por fecha desde Supabase para evitar errores de Zona Horaria
     const [reqVentas, reqGastos] = await Promise.all([
       supabase.from('registro_ventas').select('*').neq('estado', 'Cancelado'),
       supabase.from('gastos').select('*').order('fecha', { ascending: false })
     ])
 
-    // FILTRAMOS USANDO EL HORARIO LOCAL DE TU COMPUTADOR (CHILE)
+    if (reqVentas.error) alert("Error leyendo ventas: " + reqVentas.error.message)
+    if (reqGastos.error) alert("Error leyendo gastos: " + reqGastos.error.message)
+
     const ventasDelMes = (reqVentas.data || []).filter(v => {
-      const fecha = new Date(v.created_at)
+      // 👇 MAGIA AQUÍ: Prioriza la fecha_cierre. Si no tiene, usa la de inicio para no perder ventas viejas
+      const fecha = new Date(v.fecha_cierre || v.fecha_inicio)
       return fecha.getMonth() + 1 === mesActual && fecha.getFullYear() === anioActual
     })
 
     const gastosDelMes = (reqGastos.data || []).filter(g => {
-      // Para los gastos usamos la fecha exacta que seleccionaste en el formulario
       const [year, month] = g.fecha.split('-')
       return Number(month) === mesActual && Number(year) === anioActual
     })
@@ -45,19 +41,11 @@ export default function ContabilidadPage() {
     setCargando(false)
   }
 
-  useEffect(() => {
-    cargarDatos()
-  }, [mesActual, anioActual])
+  useEffect(() => { cargarDatos() }, [mesActual, anioActual])
 
   const registrarGasto = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setGuardando(true)
-    const { error } = await supabase.from('gastos').insert([{
-      fecha: nuevoGasto.fecha,
-      categoria: nuevoGasto.categoria,
-      descripcion: nuevoGasto.descripcion,
-      monto: Number(nuevoGasto.monto)
-    }])
+    e.preventDefault(); setGuardando(true)
+    const { error } = await supabase.from('gastos').insert([{ fecha: nuevoGasto.fecha, categoria: nuevoGasto.categoria, descripcion: nuevoGasto.descripcion, monto: Number(nuevoGasto.monto) }])
     setGuardando(false)
     if (!error) { setNuevoGasto({ ...nuevoGasto, descripcion: '', monto: '' }); cargarDatos(); }
   }
@@ -75,9 +63,9 @@ export default function ContabilidadPage() {
   const utilidadNeta = utilidadBruta - totalGastosOperativos
 
   const descargarPlanilla = () => {
-    let csv = "Fecha,Categoria,Descripcion,Tipo Movimiento,Monto,Costo Asociado\n"
+    let csv = "Fecha de Cierre,Categoria,Descripcion,Tipo Movimiento,Monto,Costo Asociado\n"
     ventas.forEach(v => {
-      const fecha = new Date(v.created_at).toLocaleDateString('es-CL')
+      const fecha = new Date(v.fecha_cierre || v.fecha_inicio).toLocaleDateString('es-CL')
       csv += `${fecha},Venta Joya,Ref: ${v.id.split('-')[0]},Ingreso,${v.precio_lista_historico || 0},${v.costo_historico || 0}\n`
     })
     gastos.forEach(g => {
@@ -96,12 +84,8 @@ export default function ContabilidadPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
         <div><h1 className="text-3xl font-extrabold text-slate-800">Cierre Contable 💰</h1><p className="text-slate-500 text-sm mt-1">Control de taller, sueldos y utilidad real.</p></div>
         <div className="flex gap-2 items-center bg-gray-50 p-2 rounded-xl border border-gray-200 w-full md:w-auto">
-          <select value={mesActual} onChange={e => setMesActual(Number(e.target.value))} className="bg-white border p-2 rounded-lg text-sm outline-none font-bold text-slate-700 flex-1">
-            {['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
-          </select>
-          <select value={anioActual} onChange={e => setAnioActual(Number(e.target.value))} className="bg-white border p-2 rounded-lg text-sm outline-none font-bold text-slate-700 w-24">
-            <option value={2024}>2024</option><option value={2025}>2025</option><option value={2026}>2026</option>
-          </select>
+          <select value={mesActual} onChange={e => setMesActual(Number(e.target.value))} className="bg-white border p-2 rounded-lg text-sm outline-none font-bold text-slate-700 flex-1">{['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'].map((m, i) => <option key={m} value={i + 1}>{m}</option>)}</select>
+          <select value={anioActual} onChange={e => setAnioActual(Number(e.target.value))} className="bg-white border p-2 rounded-lg text-sm outline-none font-bold text-slate-700 w-24"><option value={2024}>2024</option><option value={2025}>2025</option><option value={2026}>2026</option></select>
         </div>
       </div>
 
