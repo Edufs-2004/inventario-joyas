@@ -17,8 +17,9 @@ export default function ContabilidadPage() {
   const cargarDatos = async () => {
     setCargando(true)
     
+    // Solo cargamos ventas Finalizadas / Vendidas para el conteo real
     const [reqVentas, reqGastos] = await Promise.all([
-      supabase.from('registro_ventas').select('*').neq('estado', 'Cancelado'),
+      supabase.from('registro_ventas').select('*, variantes_stock(modelos(nombre))').in('estado', ['Vendido', 'Finalizada', 'vendida']),
       supabase.from('gastos').select('*').order('fecha', { ascending: false })
     ])
 
@@ -26,9 +27,12 @@ export default function ContabilidadPage() {
     if (reqGastos.error) alert("Error leyendo gastos: " + reqGastos.error.message)
 
     const ventasDelMes = (reqVentas.data || []).filter(v => {
-      // 👇 MAGIA AQUÍ: Prioriza la fecha_cierre. Si no tiene, usa la de inicio para no perder ventas viejas
-      const fecha = new Date(v.fecha_cierre || v.fecha_inicio)
-      return fecha.getMonth() + 1 === mesActual && fecha.getFullYear() === anioActual
+      // MAGIA ZONA HORARIA: Forzamos la lectura según la hora de Santiago, Chile para no perder días.
+      const fechaBase = v.fecha_cierre || v.fecha_inicio
+      const dateObj = new Date(fechaBase)
+      const mesRegistro = parseInt(dateObj.toLocaleString('es-CL', { month: 'numeric', timeZone: 'America/Santiago' }))
+      const anioRegistro = parseInt(dateObj.toLocaleString('es-CL', { year: 'numeric', timeZone: 'America/Santiago' }))
+      return mesRegistro === mesActual && anioRegistro === anioActual
     })
 
     const gastosDelMes = (reqGastos.data || []).filter(g => {
@@ -56,27 +60,101 @@ export default function ContabilidadPage() {
     cargarDatos()
   }
 
-  const totalIngresos = ventas.reduce((acc, v) => acc + (v.precio_lista_historico || 0), 0)
+  // CÁLCULOS (Usando precio_final si existe, si no, usa el precio_lista)
+  const totalIngresos = ventas.reduce((acc, v) => acc + (v.precio_final_efectivo || v.precio_lista_historico || 0), 0)
   const costoMercaderia = ventas.reduce((acc, v) => acc + (v.costo_historico || 0), 0)
   const totalGastosOperativos = gastos.reduce((acc, g) => acc + Number(g.monto), 0)
   const utilidadBruta = totalIngresos - costoMercaderia
   const utilidadNeta = utilidadBruta - totalGastosOperativos
 
-  const descargarPlanilla = () => {
-    let csv = "Fecha de Cierre,Categoria,Descripcion,Tipo Movimiento,Monto,Costo Asociado\n"
-    ventas.forEach(v => {
-      const fecha = new Date(v.fecha_cierre || v.fecha_inicio).toLocaleDateString('es-CL')
-      csv += `${fecha},Venta Joya,Ref: ${v.id.split('-')[0]},Ingreso,${v.precio_lista_historico || 0},${v.costo_historico || 0}\n`
-    })
-    gastos.forEach(g => {
-      const fecha = new Date(g.fecha).toLocaleDateString('es-CL')
-      const descLimpia = g.descripcion.replace(/,/g, '')
-      csv += `${fecha},${g.categoria},${descLimpia},Egreso,-${g.monto},0\n`
-    })
-    csv += `\nRESUMEN DEL MES\nIngresos Totales,,,,${totalIngresos}\nCosto Mercaderia Vendida,,,,${costoMercaderia}\nGastos Operativos,,,,${totalGastosOperativos}\nUTILIDAD NETA,,,,${utilidadNeta}\n`
+  // CREACIÓN DE PDF PROFESIONAL NATIVO
+  const generarPDF = () => {
+    const nombresMeses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const nombreMes = nombresMeses[mesActual - 1];
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `Contabilidad_SCJoyas_${mesActual}_${anioActual}.csv`; link.click();
+    let tablaVentasHTML = ''
+    ventas.forEach(v => {
+      const fecha = new Date(v.fecha_cierre || v.fecha_inicio).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })
+      const nombreJoya = v.variantes_stock?.modelos?.nombre || 'Joya sin nombre'
+      const monto = (v.precio_final_efectivo || v.precio_lista_historico || 0).toLocaleString('es-CL')
+      tablaVentasHTML += `<tr><td>${fecha}</td><td>${nombreJoya} (Ref: ${v.id.split('-')[0]})</td><td class="monto ingreso">$${monto}</td></tr>`
+    })
+
+    let tablaGastosHTML = ''
+    gastos.forEach(g => {
+      const fecha = new Date(g.fecha).toLocaleDateString('es-CL', { timeZone: 'America/Santiago' })
+      const monto = Number(g.monto).toLocaleString('es-CL')
+      tablaGastosHTML += `<tr><td>${fecha}</td><td>${g.categoria} - ${g.descripcion}</td><td class="monto egreso">-$${monto}</td></tr>`
+    })
+
+    const ventana = window.open('', '_blank')
+    if(!ventana) {
+      alert("Por favor, permite las ventanas emergentes (pop-ups) en tu navegador para ver el PDF.")
+      return;
+    }
+
+    ventana.document.write(`
+      <html>
+        <head>
+          <title>Reporte_SCJoyas_${nombreMes}_${anioActual}</title>
+          <style>
+            body { font-family: 'Helvetica', 'Arial', sans-serif; padding: 40px; color: #334155; }
+            .header { border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+            h1 { color: #0f172a; margin: 0; font-size: 28px; }
+            p { margin: 5px 0; color: #64748b; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 14px; }
+            th, td { border: 1px solid #cbd5e1; padding: 12px; text-align: left; }
+            th { background-color: #f8fafc; color: #0f172a; font-weight: bold; }
+            .monto { text-align: right; font-weight: bold; }
+            .ingreso { color: #059669; }
+            .egreso { color: #e11d48; }
+            .resumen { background: #f1f5f9; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0; }
+            .resumen-item { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 16px; }
+            .total-final { display: flex; justify-content: space-between; margin-top: 15px; padding-top: 15px; border-top: 2px solid #cbd5e1; font-size: 20px; font-weight: 900; color: #0f172a; }
+            .firma { margin-top: 80px; text-align: center; border-top: 1px solid #cbd5e1; width: 250px; padding-top: 10px; margin-left: auto; margin-right: auto;}
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>SC Joyas - Reporte Financiero</h1>
+            <p>Periodo contable: <strong>${nombreMes} ${anioActual}</strong></p>
+            <p>Fecha de emisión: ${new Date().toLocaleDateString('es-CL')}</p>
+          </div>
+
+          <h3>Ingresos por Ventas (Cerradas)</h3>
+          <table>
+            <thead><tr><th style="width: 20%;">Fecha</th><th>Descripción</th><th style="width: 25%;">Monto Pagado</th></tr></thead>
+            <tbody>${tablaVentasHTML || '<tr><td colspan="3" style="text-align:center;">Sin ingresos registrados.</td></tr>'}</tbody>
+          </table>
+
+          <h3>Egresos Operativos (Taller y Sueldos)</h3>
+          <table>
+            <thead><tr><th style="width: 20%;">Fecha</th><th>Categoría / Detalle</th><th style="width: 25%;">Monto Saliente</th></tr></thead>
+            <tbody>${tablaGastosHTML || '<tr><td colspan="3" style="text-align:center;">Sin egresos registrados.</td></tr>'}</tbody>
+          </table>
+
+          <div class="resumen">
+            <h3>Resumen del Periodo</h3>
+            <div class="resumen-item"><span>Ingresos Brutos:</span><span class="ingreso">$${totalIngresos.toLocaleString('es-CL')}</span></div>
+            <div class="resumen-item"><span>(-) Costo de Mercadería Vendida:</span><span class="egreso">-$${costoMercaderia.toLocaleString('es-CL')}</span></div>
+            <div class="resumen-item"><span>(-) Gastos y Taller:</span><span class="egreso">-$${totalGastosOperativos.toLocaleString('es-CL')}</span></div>
+            <div class="total-final">
+              <span>UTILIDAD NETA LÍQUIDA:</span>
+              <span style="color: ${utilidadNeta >= 0 ? '#059669' : '#e11d48'};">$${utilidadNeta.toLocaleString('es-CL')}</span>
+            </div>
+          </div>
+
+          <div class="firma">
+            <p>Firma Administrador</p>
+          </div>
+
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `)
+    ventana.document.close()
   }
 
   return (
@@ -110,7 +188,7 @@ export default function ContabilidadPage() {
           </form>
         </div>
         <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
-          <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="text-lg font-bold text-slate-800">Detalle de Salidas</h3><button onClick={descargarPlanilla} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-4 rounded-lg text-sm transition-colors">📥 Descargar CSV</button></div>
+          <div className="flex justify-between items-center mb-6 border-b pb-4"><h3 className="text-lg font-bold text-slate-800">Detalle de Salidas</h3><button onClick={generarPDF} className="bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold py-2 px-6 rounded-lg text-sm transition-colors shadow-md">📑 Generar Reporte PDF</button></div>
           <div className="overflow-x-auto">
             {cargando ? <p className="text-center py-10 text-gray-500 font-bold">Calculando...</p> : gastos.length === 0 ? <p className="text-center py-10 text-gray-400 font-bold">No hay trabajos registrados este mes.</p> : (
               <table className="w-full text-left border-collapse">
